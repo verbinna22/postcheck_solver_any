@@ -31,10 +31,9 @@ class PointsToAdapterSingleton private constructor() {
         data class AllocationSite(val alias: Alias, val tp: String) : PointsToInstance
         data class Argument(val method: String, val index: Int) : PointsToInstance, AliasBase
         data class ReturnValue(val method: String) : PointsToInstance, AliasBase
+        data class Unknown(val method: String) : PointsToInstance
     }
 
-//    private val varToRootIdMap = mutableMapOf<Int, MutableSet<Int>>()
-//    private val rootIdToVarMap = mutableMapOf<Int, MutableSet<Int>>()
     private val varToAliasesMap = mutableMapOf<Int, MutableSet<Int>>()
     private val indToEntity = mutableMapOf<Int, PointsToInstance>()
     private val entityToInd = mutableMapOf<PointsToInstance, Int>()
@@ -75,6 +74,7 @@ class PointsToAdapterSingleton private constructor() {
     private val loads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
     private val varIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
     private val varIndToLoadSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
+    private val unknownToIds: MutableMap<String, MutableSet<Int>> = mutableMapOf()
 
     private fun addAliasesUsingFields(forStores: Boolean) {
         val indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
@@ -114,10 +114,6 @@ class PointsToAdapterSingleton private constructor() {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
-            (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
-                val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-                varToAliasesMap.getOrPut(var1) { mutableSetOf(var1) }.add(var2) // reversed combination must be in file
-            }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@")
                 val pti = when (items[1]) {
@@ -128,6 +124,7 @@ class PointsToAdapterSingleton private constructor() {
                     "return" -> findMethod(items[2])?.let { PointsToInstance.ReturnValue(it) }
                     "staticcontext" -> PointsToInstance.Rubbish(Unit)
                     "staticalloc" -> PointsToInstance.Rubbish(Unit)
+                    "unknown" -> PointsToInstance.Unknown(items[1])
                     else -> null
                 }
                 if (pti == null) {
@@ -136,6 +133,16 @@ class PointsToAdapterSingleton private constructor() {
                     val id = items[0].toInt() * countDirEntries + dirId
                     indToEntity[id] = pti
                     entityToInd[pti] = id
+                }
+            }
+            (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
+                val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
+                val ent1 = indToEntity[var1]!!
+                if (ent1 is PointsToInstance.Unknown) {
+                    unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }.add(var2)
+                } else {
+                    varToAliasesMap.getOrPut(var1) { mutableSetOf(var1) }
+                        .add(var2) // reversed combination must be in file
                 }
             }
             (projectDirectory / "field_mapping.txt").bufferedReader().forEachLine { line ->
@@ -198,9 +205,15 @@ class PointsToAdapterSingleton private constructor() {
                     if (isCorrectBase(fromAlias.base) && isCorrectBase(toAlias.base)) {
                         f2fs.add(F2FEdge(fromAlias, toAlias))
                     }
-//                } else {
-//                    z2fs.add(Z2FEdge(alloc.tp, toAlias)) // TODO(filter
-//                }
+                }
+            }
+        }
+        for ((method, ids) in unknownToIds) {
+            for (id in ids) {
+                for (toAlias in varIndToSetOfAliases[id]!!) {
+                    if (isCorrectBase(toAlias.base)) {
+                        z2fs.add(Z2FEdge(method, toAlias))
+                    }
                 }
             }
         }
