@@ -33,8 +33,9 @@ class PointsToAdapterSingleton private constructor() {
         data class ReturnValue(val method: String) : PointsToInstance, AliasBase
     }
 
-    private val varToObjMap = mutableMapOf<Int, MutableSet<Int>>()
-    private val objToVarMap = mutableMapOf<Int, MutableSet<Int>>()
+//    private val varToRootIdMap = mutableMapOf<Int, MutableSet<Int>>()
+//    private val rootIdToVarMap = mutableMapOf<Int, MutableSet<Int>>()
+    private val varToAliasesMap = mutableMapOf<Int, MutableSet<Int>>()
     private val indToEntity = mutableMapOf<Int, PointsToInstance>()
     private val entityToInd = mutableMapOf<PointsToInstance, Int>()
 
@@ -69,33 +70,40 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
-    private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
+    //private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
     private val stores: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
+    private val loads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
+    private val varIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
+    private val varIndToLoadSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
 
-    private fun addAliasesUsingFields() {
-        val indToSetOfAliasesSize = createIndToSetOfAliasesSize()
+    private fun addAliasesUsingFields(forStores: Boolean) {
+        val indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
+        val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         var wasChanges = true
         while (wasChanges) {
             for ((aInds, acc, bInds) in stores) {
                 for (aInd in aInds) {
                     for (bInd in bInds) {
-                        val bSet = objIndToSetOfAliases[bInd]!!
-                        val aSet = objIndToSetOfAliases[aInd]!!
+                        val bSet = correspondingMap[bInd]!!
+                        val aSet = correspondingMap[aInd]!!
                         for (aAlias in aSet) {
                             bSet.add(aAlias.withNewAccessor(acc))
                         }
                     }
                 }
             }
-            val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize()
+            val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
             if (indToSetOfAliasesSize == newIndToSetOfAliasesSize) {
                 wasChanges = false
             }
         }
     }
 
-    private fun createIndToSetOfAliasesSize(): Map<Int, Int> {
-        return objIndToSetOfAliases.mapValues { value -> value.value.size }
+    private fun createIndToSetOfAliasesSize(forStores: Boolean): Map<Int, Int> {
+        if (forStores) {
+            return varIndToSetOfAliases.mapValues { value -> value.value.size }
+        }
+        return varIndToLoadSetOfAliases.mapValues { value -> value.value.size }
     }
 
     private fun findMethod(savedSignature: String): String {
@@ -107,9 +115,8 @@ class PointsToAdapterSingleton private constructor() {
         var dirId = 0
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
-                val (variable, obj) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-                varToObjMap.getOrPut(variable) { mutableSetOf() }.add(obj)
-                objToVarMap.getOrPut(obj) { mutableSetOf() }.add(variable)
+                val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
+                varToAliasesMap.getOrPut(var1) { mutableSetOf(var1) }.add(var2) // reversed combination must be in file
             }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@")
@@ -117,8 +124,6 @@ class PointsToAdapterSingleton private constructor() {
                     "this" -> findMethod(items[2])?.let { PointsToInstance.This(it) }
                     "local" -> findMethod(items[2])?.let { PointsToInstance.LocalVar(it, items[6].toInt()) }
                     "temp" -> PointsToInstance.Rubbish(Unit)
-                    "spectmp" -> PointsToInstance.Rubbish(Unit)
-                    "specalloc" -> PointsToInstance.AllocationSite(aliasFromString(items[3]), items[2])
                     "arg" -> findMethod(items[2])?.let { PointsToInstance.Argument(it, items[3].toInt()) }
                     "return" -> findMethod(items[2])?.let { PointsToInstance.ReturnValue(it) }
                     "staticcontext" -> PointsToInstance.Rubbish(Unit)
@@ -133,7 +138,7 @@ class PointsToAdapterSingleton private constructor() {
                     entityToInd[pti] = id
                 }
             }
-            (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
+            (projectDirectory / "field_mapping.txt").bufferedReader().forEachLine { line ->
                 val (num, rest) = line.split("@")
                 val number = num.toInt()
                 fIndToAccessor[number] = if (rest == "PtArrayElementField") {
@@ -146,18 +151,25 @@ class PointsToAdapterSingleton private constructor() {
             }
             (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
                 val items = line.split(" ")
-                val aInd = items[0].toInt() * countDirEntries + dirId
-                val bInd = items[1].toInt() * countDirEntries + dirId
-                val fInd = items[3].toInt()
-                val acc = fIndToAccessor[fInd]!!
-                stores.add(Triple(varToObjMap[aInd]!!, acc, varToObjMap[bInd]!!))
+                if (items.size == 4 && (items[2] == "store" || items[2] == "load")) {
+                    val aInd = items[0].toInt() * countDirEntries + dirId
+                    val bInd = items[1].toInt() * countDirEntries + dirId
+                    val fInd = items[3].toInt()
+                    val acc = fIndToAccessor[fInd]!!
+                    if (items[2] == "store") {
+                        stores.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!))
+                    } else {
+                        loads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!))
+                    }
+                }
             }
             dirId += 1
             fIndToAccessor.clear()
         }
-        for ((o, vs) in objToVarMap) {
+        for ((variable, vs) in varToAliasesMap) {
             val aliases = mutableSetOf<Alias>()
-            objIndToSetOfAliases[o] = aliases
+            varIndToSetOfAliases[variable] = aliases
+            varIndToLoadSetOfAliases[variable] = aliases
             for (v in vs) {
                 val entity = indToEntity[v]!!
                 if (entity is AliasBase) {
@@ -165,23 +177,30 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
         }
-        addAliasesUsingFields()
+        addAliasesUsingFields(true)
+        addAliasesUsingFields(false)
     }
 
     data class F2FEdge(val from: Alias, val to: Alias)
     data class Z2FEdge(val msg: String, val to: Alias)
 
+    fun isCorrectBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
+        return base is PointsToInstance.This || base is PointsToInstance.Argument || base is PointsToInstance.ReturnValue
+    }
+
     fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
         val f2fs = mutableListOf<F2FEdge>()
         val z2fs = mutableListOf<Z2FEdge>()
-        for ((objInd, aliases) in objIndToSetOfAliases) {
-            val alloc = (indToEntity[objInd]!! as PointsToInstance.AllocationSite)
-            val fromAlias = alloc.alias
-            for (toAlias in aliases) {
-                if (alloc.tp == "real") {
-                    f2fs.add(F2FEdge(fromAlias, toAlias))
-                } else {
-                    z2fs.add(Z2FEdge(alloc.tp, toAlias))
+        for ((varInd, aliases) in varIndToSetOfAliases) {
+            val fromAliases = varIndToLoadSetOfAliases[varInd]!!
+            for (fromAlias in fromAliases) {
+                for (toAlias in aliases) {
+                    if (isCorrectBase(fromAlias.base) && isCorrectBase(toAlias.base)) {
+                        f2fs.add(F2FEdge(fromAlias, toAlias))
+                    }
+//                } else {
+//                    z2fs.add(Z2FEdge(alloc.tp, toAlias)) // TODO(filter
+//                }
                 }
             }
         }
