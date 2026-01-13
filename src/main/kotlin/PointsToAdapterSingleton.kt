@@ -87,9 +87,10 @@ class PointsToAdapterSingleton private constructor() {
     private fun addAliasesUsingFields(forStores: Boolean) {
         val indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
+        val graphRibs = if (forStores) stores else loads
         var wasChanges = true
         while (wasChanges) {
-            for ((aInds, acc, bInds) in stores) {
+            for ((aInds, acc, bInds) in graphRibs) {
                 for (aInd in aInds) {
                     for (bInd in bInds) {
                         val bSet = correspondingMap[bInd]!!
@@ -165,16 +166,16 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
             (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
-                val items = line.split(" ")
-                if (items.size == 4 && (items[2] == "store" || items[2] == "load")) {
-                    val aInd = items[0].toInt() * countDirEntries + dirId
-                    val bInd = items[1].toInt() * countDirEntries + dirId
+                val items = line.split(" ", "\t")
+                if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
+                    val aInd = items[0].toInt() * countDirEntries + dirId // base
+                    val bInd = items[1].toInt() * countDirEntries + dirId //.field
                     val fInd = items[3].toInt()
                     val acc = fIndToAccessor[fInd]!!
-                    if (items[2] == "store") {
-                        stores.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!))
+                    if (items[2] == "store_i") {
+                        stores.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!)) // a.b = c
                     } else {
-                        loads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!))
+                        loads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!)) // c -> a.b | a, b, c
                     }
                 }
             }
