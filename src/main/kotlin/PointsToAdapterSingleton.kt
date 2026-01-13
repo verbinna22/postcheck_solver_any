@@ -25,7 +25,7 @@ class PointsToAdapterSingleton private constructor() {
 
     sealed interface AliasBase
     sealed interface PointsToInstance {
-        data class Rubbish(val u: Unit) : PointsToInstance
+        data class Rubbish(val u: Int) : PointsToInstance, AliasBase
         data class This(val method: String) : PointsToInstance, AliasBase {
             override fun toString(): String = "this"
         }
@@ -37,7 +37,7 @@ class PointsToAdapterSingleton private constructor() {
         data class ReturnValue(val method: String) : PointsToInstance, AliasBase {
             override fun toString(): String = "return"
         }
-        data class Unknown(val method: String) : PointsToInstance
+        data class Unknown(val method: String) : PointsToInstance, AliasBase
     }
 
     private val varToAliasesMap = mutableMapOf<Int, MutableSet<Int>>()
@@ -125,21 +125,21 @@ class PointsToAdapterSingleton private constructor() {
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@")
+                val id = items[0].toInt() * countDirEntries + dirId
                 val pti = when (items[1]) {
                     "this" -> findMethod(items[2])?.let { PointsToInstance.This(it) }
                     "local" -> findMethod(items[2])?.let { PointsToInstance.LocalVar(it, items[6].toInt()) }
-                    "temp" -> PointsToInstance.Rubbish(Unit)
+                    "temp" -> PointsToInstance.Rubbish(id)
                     "arg" -> findMethod(items[2])?.let { PointsToInstance.Argument(it, items[3].toInt()) }
                     "return" -> findMethod(items[2])?.let { PointsToInstance.ReturnValue(it) }
-                    "staticcontext" -> PointsToInstance.Rubbish(Unit)
-                    "staticalloc" -> PointsToInstance.Rubbish(Unit)
+                    "staticcontext" -> PointsToInstance.Rubbish(id)
+                    "staticalloc" -> PointsToInstance.Rubbish(id)
                     "unknown" -> PointsToInstance.Unknown(items[1])
                     else -> null
                 }
                 if (pti == null) {
                     println("Unsupported value of $items")
                 } else {
-                    val id = items[0].toInt() * countDirEntries + dirId
                     indToEntity[id] = pti
                     entityToInd[pti] = id
                 }
