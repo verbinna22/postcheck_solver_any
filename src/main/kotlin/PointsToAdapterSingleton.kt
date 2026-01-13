@@ -85,7 +85,7 @@ class PointsToAdapterSingleton private constructor() {
     private val unknownToIds: MutableMap<String, MutableSet<Int>> = mutableMapOf()
 
     private fun addAliasesUsingFields(forStores: Boolean) {
-        val indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
+        var indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         val graphRibs = if (forStores) stores else loads
         var wasChanges = true
@@ -105,6 +105,7 @@ class PointsToAdapterSingleton private constructor() {
             if (indToSetOfAliasesSize == newIndToSetOfAliasesSize) {
                 wasChanges = false
             }
+            indToSetOfAliasesSize = newIndToSetOfAliasesSize
         }
     }
 
