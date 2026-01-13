@@ -15,7 +15,7 @@ class PointsToAdapterSingleton private constructor() {
                 synchronized(this) {
                     if (instance == null) {
                         instance = PointsToAdapterSingleton()
-                        instance!!.loadPointsToInformation("/mnt/data/MyOwnFolder/learning/p_algo/data/for_seqra_tests")
+                        instance!!.loadPointsToInformation("/mnt/data/MyOwnFolder/learning/p_algo/taint_in_graph_no_field/graphs")
                     }
                 }
             }
@@ -145,7 +145,7 @@ class PointsToAdapterSingleton private constructor() {
                         .add(var2) // reversed combination must be in file
                 }
             }
-            (projectDirectory / "field_mapping.txt").bufferedReader().forEachLine { line ->
+            (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
                 val (num, rest) = line.split("@")
                 val number = num.toInt()
                 fIndToAccessor[number] = if (rest == "PtArrayElementField") {
@@ -188,8 +188,16 @@ class PointsToAdapterSingleton private constructor() {
         addAliasesUsingFields(false)
     }
 
-    data class F2FEdge(val from: Alias, val to: Alias)
-    data class Z2FEdge(val msg: String, val to: Alias)
+    data class F2FEdge(val from: Alias, val to: Alias) {
+        override fun toString(): String {
+            return "$from -> $to"
+        }
+    }
+    data class Z2FEdge(val msg: String, val to: Alias) {
+        override fun toString(): String {
+            return "$msg| $to"
+        }
+    }
 
     fun isCorrectBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
         return base is PointsToInstance.This || base is PointsToInstance.Argument || base is PointsToInstance.ReturnValue
