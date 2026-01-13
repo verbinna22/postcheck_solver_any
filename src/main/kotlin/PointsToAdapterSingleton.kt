@@ -186,13 +186,13 @@ class PointsToAdapterSingleton private constructor() {
         for ((variable, vs) in varToAliasesMap) {
             val aliases = mutableSetOf<Alias>()
             varIndToSetOfAliases[variable] = aliases
-            varIndToLoadSetOfAliases[variable] = aliases
             for (v in vs) {
                 val entity = indToEntity[v]!!
                 if (entity is AliasBase) {
                     aliases.add(Alias(entity, listOf()))
                 }
             }
+            varIndToLoadSetOfAliases[variable] = aliases.toMutableSet()
         }
         addAliasesUsingFields(true)
         addAliasesUsingFields(false)
