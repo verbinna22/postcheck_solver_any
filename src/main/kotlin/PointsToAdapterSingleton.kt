@@ -26,11 +26,17 @@ class PointsToAdapterSingleton private constructor() {
     sealed interface AliasBase
     sealed interface PointsToInstance {
         data class Rubbish(val u: Unit) : PointsToInstance
-        data class This(val method: String) : PointsToInstance, AliasBase
+        data class This(val method: String) : PointsToInstance, AliasBase {
+            override fun toString(): String = "this"
+        }
         data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase
         data class AllocationSite(val alias: Alias, val tp: String) : PointsToInstance
-        data class Argument(val method: String, val index: Int) : PointsToInstance, AliasBase
-        data class ReturnValue(val method: String) : PointsToInstance, AliasBase
+        data class Argument(val method: String, val index: Int) : PointsToInstance, AliasBase {
+            override fun toString(): String = "arg($index)"
+        }
+        data class ReturnValue(val method: String) : PointsToInstance, AliasBase {
+            override fun toString(): String = "return"
+        }
         data class Unknown(val method: String) : PointsToInstance
     }
 
@@ -52,6 +58,8 @@ class PointsToAdapterSingleton private constructor() {
             }
             return Alias(base, accessors.drop(1))
         }
+
+        override fun toString(): String = (listOf("$base") + accessors).joinToString(".")
     }
 
     fun aliasFromString(str: String): Alias {
