@@ -143,7 +143,7 @@ class PointsToAdapterSingleton private constructor() {
                     "return" -> findMethod(items[2])?.let { PointsToInstance.ReturnValue(it) }
                     "staticcontext" -> PointsToInstance.Rubbish(id)
                     "staticalloc" -> PointsToInstance.Rubbish(id)
-                    "unknown" -> PointsToInstance.Unknown(items[1])
+                    "unknown" -> PointsToInstance.Unknown(items[2])
                     "alloc" -> PointsToInstance.Rubbish(id)
                     else -> null
                 }
@@ -245,9 +245,12 @@ class PointsToAdapterSingleton private constructor() {
         }
         for ((method, ids) in unknownToIds) {
             for (id in ids) {
-                for (toAlias in varIndToSetOfAliases[id]!!) {
-                    if (isCorrectBase(toAlias.base)) {
-                        z2fs.add(Z2FEdge(method, toAlias))
+                val aliases = varIndToSetOfAliases[id]
+                if (aliases != null) {
+                    for (toAlias in aliases) {
+                        if (isCorrectBase(toAlias.base)) {
+                            z2fs.add(Z2FEdge(method, toAlias))
+                        }
                     }
                 }
             }
