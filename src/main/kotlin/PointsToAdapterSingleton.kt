@@ -26,19 +26,27 @@ class PointsToAdapterSingleton private constructor() {
     sealed interface AliasBase
     sealed interface PointsToInstance {
         data class Rubbish(val u: Int) : PointsToInstance, AliasBase
-        data class This(val method: String) : PointsToInstance, AliasBase {
+        data class This(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "this"
         }
         data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase
         data class AllocationSite(val alias: Alias, val tp: String) : PointsToInstance
-        data class Argument(val method: String, val index: Int) : PointsToInstance, AliasBase {
+        data class Argument(val method: String, val index: Int, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "arg($index)"
         }
-        data class ReturnValue(val method: String) : PointsToInstance, AliasBase {
+        data class ReturnValue(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "return"
         }
         data class Unknown(val method: String) : PointsToInstance, AliasBase
     }
+
+    private fun toEntryPoint(pti: PointsToInstance): PointsToInstance =
+        when (pti) {
+            is PointsToInstance.Argument -> PointsToInstance.Argument(pti.method, pti.index, true)
+            is PointsToInstance.ReturnValue -> PointsToInstance.ReturnValue(pti.method, true)
+            is PointsToInstance.This -> PointsToInstance.This(pti.method, true)
+            else -> pti
+        }
 
     private val varToAliasesMap = mutableMapOf<Int, MutableSet<Int>>()
     private val indToEntity = mutableMapOf<Int, PointsToInstance>()
@@ -147,6 +155,10 @@ class PointsToAdapterSingleton private constructor() {
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
+                indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
+                indToEntity[var2] = toEntryPoint(indToEntity[var2]!!)
+                entityToInd[indToEntity[var1]!!] = var1
+                entityToInd[indToEntity[var2]!!] = var2
                 val ent1 = indToEntity[var1]!!
                 if (ent1 is PointsToInstance.Unknown) {
                     unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }.add(var2)
@@ -210,7 +222,11 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     fun isCorrectBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
-        return base is PointsToInstance.This || base is PointsToInstance.Argument || base is PointsToInstance.ReturnValue
+        return isCorrectStartBase(base) || base is PointsToInstance.ReturnValue && base.isEntryPoint
+    }
+
+    fun isCorrectStartBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
+        return base is PointsToInstance.This && base.isEntryPoint || base is PointsToInstance.Argument && base.isEntryPoint
     }
 
     fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
@@ -220,7 +236,7 @@ class PointsToAdapterSingleton private constructor() {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
             for (fromAlias in fromAliases) {
                 for (toAlias in aliases) {
-                    if (isCorrectBase(fromAlias.base) && isCorrectBase(toAlias.base)) {
+                    if (isCorrectStartBase(fromAlias.base) && isCorrectBase(toAlias.base)) {
                         f2fs.add(F2FEdge(fromAlias, toAlias))
                     }
                 }
