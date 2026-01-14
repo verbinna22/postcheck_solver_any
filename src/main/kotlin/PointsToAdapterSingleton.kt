@@ -144,6 +144,7 @@ class PointsToAdapterSingleton private constructor() {
                     "staticcontext" -> PointsToInstance.Rubbish(id)
                     "staticalloc" -> PointsToInstance.Rubbish(id)
                     "unknown" -> PointsToInstance.Unknown(items[1])
+                    "alloc" -> PointsToInstance.Rubbish(id)
                     else -> null
                 }
                 if (pti == null) {
