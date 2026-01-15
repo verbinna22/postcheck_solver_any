@@ -255,6 +255,6 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
         }
-        return f2fs to z2fs
+        return f2fs.toSet().toList() to z2fs
     }
 }
