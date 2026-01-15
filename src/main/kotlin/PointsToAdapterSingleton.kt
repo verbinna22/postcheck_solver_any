@@ -156,10 +156,6 @@ class PointsToAdapterSingleton private constructor() {
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-                indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
-                indToEntity[var2] = toEntryPoint(indToEntity[var2]!!)
-                entityToInd[indToEntity[var1]!!] = var1
-                entityToInd[indToEntity[var2]!!] = var2
                 val ent1 = indToEntity[var1]!!
                 if (ent1 is PointsToInstance.Unknown) {
                     unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }.add(var2) // TODO
@@ -181,6 +177,11 @@ class PointsToAdapterSingleton private constructor() {
             }
             (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
                 val items = line.split(" ", "\t")
+                if (items[2] == "entrypoint") {
+                    val var1 = items[0].toInt() * countDirEntries + dirId
+                    indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
+                    entityToInd[indToEntity[var1]!!] = var1
+                }
                 if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
                     val aInd = items[0].toInt() * countDirEntries + dirId // base
                     val bInd = items[1].toInt() * countDirEntries + dirId //.field
