@@ -162,7 +162,7 @@ class PointsToAdapterSingleton private constructor() {
                 entityToInd[indToEntity[var2]!!] = var2
                 val ent1 = indToEntity[var1]!!
                 if (ent1 is PointsToInstance.Unknown) {
-                    unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }.add(var2)
+                    unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }.add(var2) // TODO
                 } else {
                     varToAliasesMap.getOrPut(var1) { mutableSetOf(var1) }
                         .add(var2) // reversed combination must be in file
