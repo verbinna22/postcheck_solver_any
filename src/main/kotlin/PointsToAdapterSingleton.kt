@@ -152,6 +152,7 @@ class PointsToAdapterSingleton private constructor() {
                 } else {
                     indToEntity[id] = pti
                     entityToInd[pti] = id
+                    varToAliasesMap.put(id, mutableSetOf(id))
                 }
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
@@ -160,8 +161,7 @@ class PointsToAdapterSingleton private constructor() {
                 if (ent1 is PointsToInstance.Unknown) {
                     unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }
                 } else {
-                    varToAliasesMap.getOrPut(var1) { mutableSetOf(var1) }
-                        .add(var2) // reversed combination must be in file
+                    varToAliasesMap[var1]!!.add(var2) // reversed combination must be in file
                 }
             }
             (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
