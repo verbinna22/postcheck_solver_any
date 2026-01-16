@@ -132,6 +132,16 @@ class PointsToAdapterSingleton private constructor() {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
+            (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
+                val items = line.split("@")
+                val pti = when (items[0]) {
+                    "this" -> findMethod(items[1])?.let { PointsToInstance.This(it) }
+                    "arg" -> findMethod(items[1])?.let { PointsToInstance.Argument(it, items[2].toInt()) }
+                    else -> throw IllegalArgumentException("Unknown alias base")
+                }
+                val alias = Alias(pti as AliasBase, listOf())
+                defaultEdges.add(F2FEdge(alias, alias))
+            }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@")
                 val id = items[0].toInt() * countDirEntries + dirId
@@ -224,6 +234,8 @@ class PointsToAdapterSingleton private constructor() {
         }
     }
 
+    private val defaultEdges = mutableListOf<F2FEdge>()
+
     fun isCorrectBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
         return isCorrectStartBase(base) || base is PointsToInstance.ReturnValue && base.isEntryPoint
     }
@@ -235,6 +247,7 @@ class PointsToAdapterSingleton private constructor() {
     fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
         val f2fs = mutableListOf<F2FEdge>()
         val z2fs = mutableListOf<Z2FEdge>()
+        f2fs.addAll(defaultEdges)
         for ((varInd, aliases) in varIndToSetOfAliases) {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
             for (fromAlias in fromAliases) {
