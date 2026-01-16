@@ -86,7 +86,7 @@ class PointsToAdapterSingleton private constructor() {
 
     private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
     //private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
-    private val stores: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
+    private val storesAndLoads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
     private val loads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
     private val varIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
     private val varIndToLoadSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
@@ -95,7 +95,7 @@ class PointsToAdapterSingleton private constructor() {
     private fun addAliasesUsingFields(forStores: Boolean) {
         var indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
-        val graphRibs = if (forStores) stores else loads
+        val graphRibs = if (forStores) storesAndLoads else loads
         var wasChanges = true
         while (wasChanges) {
             for ((aInds, acc, bInds) in graphRibs) {
@@ -188,8 +188,9 @@ class PointsToAdapterSingleton private constructor() {
                     val fInd = items[3].toInt()
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
-                        stores.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!)) // a.b = c
+                        storesAndLoads.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!)) // a.b = c
                     } else {
+                        storesAndLoads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!))
                         loads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!)) // c -> a.b | a, b, c
                     }
                 }
