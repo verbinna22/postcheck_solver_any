@@ -169,7 +169,7 @@ class PointsToAdapterSingleton private constructor() {
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
                 val ent1 = indToEntity[var1]!!
                 if (ent1 is PointsToInstance.Unknown) {
-                    unknownToIds.getOrPut(ent1.method) { mutableSetOf(var2) }
+                    unknownToIds.getOrPut(ent1.method) { mutableSetOf() }.add(var2)
                 } else {
                     varToAliasesMap[var1]!!.add(var2) // reversed combination must be in file
                 }
