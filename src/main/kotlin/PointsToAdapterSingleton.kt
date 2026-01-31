@@ -23,21 +23,41 @@ class PointsToAdapterSingleton private constructor() {
         }
     }
 
-    sealed interface AliasBase
+    sealed interface AliasBase {
+        fun getMethodName(): String
+    }
+
     sealed interface PointsToInstance {
-        data class Rubbish(val u: Int) : PointsToInstance, AliasBase
+        data class Rubbish(val u: Int) : PointsToInstance, AliasBase {
+            override fun getMethodName(): String {
+                TODO("Not yet implemented")
+            }
+        }
+
         data class This(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "this"
+            override fun getMethodName(): String = method
         }
-        data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase
+        data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase {
+            override fun getMethodName(): String {
+                TODO("Not yet implemented")
+            }
+        }
+
         data class AllocationSite(val alias: Alias, val tp: String) : PointsToInstance
         data class Argument(val method: String, val index: Int, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "arg($index)"
+            override fun getMethodName(): String = method
         }
         data class ReturnValue(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "return"
+            override fun getMethodName(): String = method
         }
-        data class Unknown(val method: String) : PointsToInstance, AliasBase
+        data class Unknown(val method: String) : PointsToInstance, AliasBase {
+            override fun getMethodName(): String {
+                TODO("Not yet implemented")
+            }
+        }
     }
 
     private fun toEntryPoint(pti: PointsToInstance): PointsToInstance =
@@ -68,6 +88,8 @@ class PointsToAdapterSingleton private constructor() {
         }
 
         override fun toString(): String = (listOf("$base") + accessors).joinToString(".")
+
+        fun printWithMethod(): String = base.getMethodName() + ":" + this.toString()
     }
 
     fun aliasFromString(str: String): Alias {
@@ -227,11 +249,15 @@ class PointsToAdapterSingleton private constructor() {
         override fun toString(): String {
             return "$from -> $to"
         }
+
+        fun printWithMethod(): String = "${from.printWithMethod()} -> ${to.printWithMethod()}"
     }
     data class Z2FEdge(val msg: String, val to: Alias) {
         override fun toString(): String {
             return "$msg| $to"
         }
+
+        fun printWithMethod(): String = "$msg| ${to.printWithMethod()}"
     }
 
     private val defaultEdges = mutableListOf<F2FEdge>()
