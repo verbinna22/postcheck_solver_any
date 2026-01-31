@@ -81,9 +81,9 @@ object SummaryChecker {
     val lock = ReentrantLock()
 
     init {
-        val file = File("/mnt/data/MyOwnFolder/learning/p_algo/aspectAdd/aspectAdd/aspectDump.txt").bufferedReader()
+        val file = File("/home/nikita/process_taint_with_solver/aspectDump.txt").bufferedReader()
         var line = file.readLine()
-        val methods: Set<Pair<String, String>> = File("/mnt/data/MyOwnFolder/learning/p_algo/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
+        val methods: Set<Pair<String, String>> = File("/home/nikita/process_taint_with_solver/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
             val parts = stringRepr.split(".")
             Pair(parts.dropLast(1).joinToString("."), parts.last())
         }.toSet()
@@ -348,14 +348,14 @@ object SummaryChecker {
         methodName: String
     ) {
         FileWriter(fileName, true).use { writer ->
-            writer.write("Detected TN: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver because of non-analysed method $methodName ($f2fs); detected($detectedPaths)\n")
+            writer.write("TN\n")//"Detected TN: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver because of non-analysed method $methodName ($f2fs); detected($detectedPaths)\n")
         }
     }
 
     // var debug = false ///
 
-    private const val fileName = "/mnt/data/MyOwnFolder/learning/p_algo/aspectAdd/aspectAdd/analysis_stats_solver_v.txt"
-    private const val errorLog = "/mnt/data/MyOwnFolder/learning/p_algo/aspectAdd/aspectAdd/analysis_errors_solver_v.txt"
+    private const val fileName = "/home/nikita/process_taint_with_solver/analysis_stats_solver_v.txt"
+    private const val errorLog = "/home/nikita/process_taint_with_solver/analysis_errors_solver_v.txt"
 
     private fun reportError(string: String) {
         println("$string\n") /// TODO: remove \n
@@ -374,7 +374,7 @@ object SummaryChecker {
         z2fs: List<PointsToAdapterSingleton.Z2FEdge>
     ) {
         FileWriter(fileName, true).use { writer ->
-            writer.write("Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
+            writer.write("Detected True Negative: $obj from ${methodCall.method}")//""Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
         }
     }
 
@@ -385,7 +385,7 @@ object SummaryChecker {
         methodCall: MethodCall
     ) {
         FileWriter(fileName, true).use {  writer ->
-            writer.write("Detected ok: $obj from ${methodCall.method} $path could be and is with $detectedPath\n")
+            writer.write("ok\n")//"Detected ok: $obj from ${methodCall.method} $path could be and is with $detectedPath\n")
         }
     }
 
@@ -396,7 +396,7 @@ object SummaryChecker {
         methodCall: MethodCall
     ) {
         FileWriter(fileName, true).use {  writer ->
-            writer.write("Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
+            writer.write("False Positive")//""Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
         }
     }
 

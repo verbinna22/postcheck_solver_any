@@ -15,7 +15,7 @@ class PointsToAdapterSingleton private constructor() {
                 synchronized(this) {
                     if (instance == null) {
                         instance = PointsToAdapterSingleton()
-                        instance!!.loadPointsToInformation("/mnt/data/MyOwnFolder/learning/p_algo/taint_in_graph_no_field/graphs")
+                        instance!!.loadPointsToInformation("/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs")
                     }
                 }
             }
@@ -135,8 +135,8 @@ class PointsToAdapterSingleton private constructor() {
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@")
                 val pti = when (items[0]) {
-                    "this" -> findMethod(items[1])?.let { PointsToInstance.This(it) }
-                    "arg" -> findMethod(items[1])?.let { PointsToInstance.Argument(it, items[2].toInt()) }
+                    "this" -> findMethod(items[1])?.let { PointsToInstance.This(it, true) }
+                    "arg" -> findMethod(items[1])?.let { PointsToInstance.Argument(it, items[2].toInt(), true) }
                     else -> throw IllegalArgumentException("Unknown alias base")
                 }
                 val alias = Alias(pti as AliasBase, listOf())
@@ -270,6 +270,6 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
         }
-        return f2fs.toSet().toList() to z2fs
+        return f2fs.toSet().toList() to z2fs.toSet().toList()
     }
 }
