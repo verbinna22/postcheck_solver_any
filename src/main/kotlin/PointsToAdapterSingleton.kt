@@ -28,9 +28,10 @@ class PointsToAdapterSingleton private constructor() {
 
         fun getMethodUnifiedName(): String {
             val name = getMethodName()
-            assert(!name.contains("<"))
-            assert(!name.contains("$"))
-            val methodName = name.split(")", limit= 1)[1]
+            if (name.contains("<")) {
+                throw IllegalStateException("must not contain <")
+            }
+            val methodName = name.split(")", limit=2)[1]
             return methodName.replace("#", "::").replace(", ", ",")
         }
     }
