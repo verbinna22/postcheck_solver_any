@@ -25,12 +25,20 @@ class PointsToAdapterSingleton private constructor() {
 
     sealed interface AliasBase {
         fun getMethodName(): String
+
+        fun getMethodUnifiedName(): String {
+            val name = getMethodName()
+            assert(!name.contains("<"))
+            assert(!name.contains("$"))
+            val methodName = name.split(")", limit= 1)[1]
+            return methodName.replace("#", "::").replace(", ", ",")
+        }
     }
 
     sealed interface PointsToInstance {
         data class Rubbish(val u: Int) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
-                TODO("Not yet implemented")
+                throw IllegalStateException("must not be Rubbish")
             }
         }
 
@@ -40,7 +48,7 @@ class PointsToAdapterSingleton private constructor() {
         }
         data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
-                TODO("Not yet implemented")
+                throw IllegalStateException("must not be LocalVar")
             }
         }
 
@@ -55,7 +63,7 @@ class PointsToAdapterSingleton private constructor() {
         }
         data class Unknown(val method: String) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
-                TODO("Not yet implemented")
+                throw IllegalStateException("must not be Unknown")
             }
         }
     }

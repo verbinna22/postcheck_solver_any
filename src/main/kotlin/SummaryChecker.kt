@@ -238,8 +238,8 @@ object SummaryChecker {
 //            if (method.className == "org.apache.logging.log4j.message.ObjectMessage") {
 //                println("")
 //            } ///
-            val markedRibs = markedEdges
-            val ribsList = edges
+            val markedRibs = markedEdges.filter { it.to.base.getMethodUnifiedName() == method.toString() }
+            val ribsList = edges.filter { it.to.base.getMethodUnifiedName() == method.toString() }
             for (call in calls) {
                 processCall(call, ribsList, markedRibs)
             }
