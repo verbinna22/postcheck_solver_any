@@ -286,8 +286,10 @@ class PointsToAdapterSingleton private constructor() {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
             for (fromAlias in fromAliases) {
                 for (toAlias in aliases) {
-                    if (isCorrectStartBase(fromAlias.base) && isCorrectBase(toAlias.base)) {
-                        f2fs.add(F2FEdge(fromAlias, toAlias))
+                    if (isCorrectStartBase(fromAlias.base)
+                        && isCorrectBase(toAlias.base)
+                        && fromAlias.base.getMethodUnifiedName() == toAlias.base.getMethodUnifiedName()) {
+                            f2fs.add(F2FEdge(fromAlias, toAlias))
                     }
                 }
             }
