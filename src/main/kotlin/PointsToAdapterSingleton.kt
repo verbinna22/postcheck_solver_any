@@ -98,7 +98,7 @@ class PointsToAdapterSingleton private constructor() {
 
         override fun toString(): String = (listOf("$base") + accessors).joinToString(".")
 
-        fun printWithMethod(): String = base.getMethodName() + ":" + this.toString()
+        fun printWithMethod(): String = base.getMethodUnifiedName() + ":" + this.toString()
     }
 
     fun aliasFromString(str: String): Alias {

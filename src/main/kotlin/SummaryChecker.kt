@@ -91,31 +91,31 @@ object SummaryChecker {
             var before: MethodState
             var after: MethodState
             var method: Method
-            assert(line.startsWith("-"))
+            if (!(line.startsWith("-"))) { throw IllegalStateException("assert") }
             line = file.readLine()
-            assert(line != null && line == "BEFORE:")
+            if (!(line != null && line == "BEFORE:")) { throw IllegalStateException("assert") }
             line = file.readLine()
-            assert(line != null)
+            if (!(line != null)) { throw IllegalStateException("assert") }
             val (className, methodName) = line.split("::")
             val (methodState, l) = parseMethodStateBefore(file)
             line = l
             before = methodState
             method = Method(className, methodName, methodState.arguments.size)
-            assert(line.startsWith("-"))
+            if (!(line.startsWith("-"))) { throw IllegalStateException("assert") }
             line = file.readLine()
 
-            assert(line.startsWith("@"))
+            if (!(line.startsWith("@"))) { throw IllegalStateException("assert") }
 
             line = file.readLine()
-            assert(line != null && line == "AFTER:")
+            if (!(line != null && line == "AFTER:")) { throw IllegalStateException("assert") }
             line = file.readLine()
-            assert(line != null)
+            if (!(line != null)) { throw IllegalStateException("assert") }
             val (className2, methodName2) = line.split("::")
             val (methodState2, l2) = parseMethodStateAfter(file)
             line = l2
-            assert(Method(className, methodName, methodState2.arguments.size) == method)
+            if (!(Method(className, methodName, methodState2.arguments.size) == method)) { throw IllegalStateException("assert") }
             after = methodState2
-            assert(line.startsWith("@"))
+            if (!(line.startsWith("@"))) { throw IllegalStateException("assert") }
             line = file.readLine()
 
             val methodNameWOArgs = methodName.split("(")[0]
@@ -128,7 +128,7 @@ object SummaryChecker {
     private fun parseMethodStateBefore(file: BufferedReader): Pair<MethodState, String> {
         var line = file.readLine()
         val arguments: MutableList<Node> = mutableListOf()
-        assert(line == "this")
+        if (!(line == "this")) { throw IllegalStateException("assert") }
         val (thisNode, l) = parseObjectTree(file)
         line = l
         while (line.matches(Regex("\\d+"))) {
@@ -142,7 +142,7 @@ object SummaryChecker {
     private fun parseMethodStateAfter(file: BufferedReader): Pair<MethodState, String> {
         var line = file.readLine()
         val arguments: MutableList<Node> = mutableListOf()
-        assert(line == "this")
+        if (!(line == "this")) { throw IllegalStateException("assert") }
         val (thisNode, l) = parseObjectTree(file)
         line = l
         while (line.matches(Regex("\\d+"))) {
@@ -150,7 +150,7 @@ object SummaryChecker {
             arguments.add(argNode)
             line = l
         }
-        assert(line == "RV")
+        if (!(line == "RV")) { throw IllegalStateException("assert") }
         val (rvNode, lrv) = parseObjectTree(file)
         line = lrv
         return Pair(MethodState(thisNode, arguments, rvNode), line)
@@ -166,7 +166,7 @@ object SummaryChecker {
         val parents = mutableListOf<Node>()
         val objIdToNode = mutableMapOf<String, Node>()
         var line = file.readLine()
-        assert(line != null)
+        if (!(line != null)) { throw IllegalStateException("assert") }
         while (
             !line.startsWith("@") &&
             !line.startsWith("-") &&
@@ -174,7 +174,7 @@ object SummaryChecker {
             line != "RV" &&
             !line.matches(Regex("\\d+"))) {
             val parts = line.split(" ")
-            assert(parts.size == 6)
+            if (!(parts.size == 6)) { throw IllegalStateException("assert") }
 
             val field = parts[0]
             val objectString = parts[1]
@@ -204,9 +204,9 @@ object SummaryChecker {
             }
 
             line = file.readLine()
-            assert(line != null)
+            if (!(line != null)) { throw IllegalStateException("assert") }
         }
-        assert(rootNodes.size == 1)
+        if (!(rootNodes.size == 1)) { throw IllegalStateException("assert") }
         return Pair(rootNodes[0], line)
     }
 
