@@ -213,8 +213,8 @@ class PointsToAdapterSingleton private constructor() {
                 fIndToAccessor[number] = if (rest == "PtArrayElementField") {
                     "[*]"
                 } else {
-                    val declaration = rest.split(")")[1]
-                    val (cls, fieldName) = declaration.split("#")
+                    val declaration = rest.split("field=")[1].removeSuffix(")")
+                    val (_, fieldName) = declaration.split("#")
                     fieldName
                 }
             }
