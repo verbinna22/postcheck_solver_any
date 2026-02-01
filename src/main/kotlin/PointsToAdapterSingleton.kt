@@ -164,7 +164,7 @@ class PointsToAdapterSingleton private constructor() {
         var dirId = 0
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
-                val items = line.split("@")
+                val items = line.split("@@")
                 val pti = when (items[0]) {
                     "this" -> findMethod(items[1])?.let { PointsToInstance.This(it, true) }
                     "arg" -> findMethod(items[1])?.let { PointsToInstance.Argument(it, items[2].toInt(), true) }
@@ -174,7 +174,7 @@ class PointsToAdapterSingleton private constructor() {
                 defaultEdges.add(F2FEdge(alias, alias))
             }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
-                val items = line.split("@")
+                val items = line.split("@@")
                 val id = items[0].toInt() * countDirEntries + dirId
                 val pti = when (items[1]) {
                     "this" -> findMethod(items[2])?.let { PointsToInstance.This(it) }
@@ -206,7 +206,7 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
             (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
-                val (num, rest) = line.split("@")
+                val (num, rest) = line.split("@@")
                 val number = num.toInt()
                 fIndToAccessor[number] = if (rest == "PtArrayElementField") {
                     "[*]"
