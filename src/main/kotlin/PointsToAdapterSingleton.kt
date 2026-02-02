@@ -31,7 +31,8 @@ class PointsToAdapterSingleton private constructor() {
             if (name.contains("<")) {
                 throw IllegalStateException("must not contain <")
             }
-            val methodName = name.split(")", limit=2)[1]
+            val (mName, args) = name.split(")", limit=2)[1].split("(", limit=2)
+            val methodName = "$mName(${args.replace("$", ".")}"
             return methodName.replace("#", "::").replace(", ", ",")
         }
     }
