@@ -374,7 +374,7 @@ object SummaryChecker {
         z2fs: List<PointsToAdapterSingleton.Z2FEdge>
     ) {
         FileWriter(fileName, true).use { writer ->
-            writer.write("Detected True Negative: $obj from ${methodCall.method}")//""Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
+            writer.write("Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
         }
     }
 
@@ -396,7 +396,7 @@ object SummaryChecker {
         methodCall: MethodCall
     ) {
         FileWriter(fileName, true).use {  writer ->
-            writer.write("False Positive")//""Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
+            writer.write("False Positive\n")//""Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
         }
     }
 
