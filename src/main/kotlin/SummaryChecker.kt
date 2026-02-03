@@ -375,7 +375,7 @@ object SummaryChecker {
     ) {
         FileWriter(fileName, true).use { writer ->
             // "Detected True Negative: $obj from ${methodCall.method}\n")//
-            writer.write("Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
+            writer.write("Detected True Negative: $obj from ${methodCall.method}\n")//"Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
         }
     }
 
