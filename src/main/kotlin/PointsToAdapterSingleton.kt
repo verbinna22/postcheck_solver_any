@@ -137,7 +137,9 @@ class PointsToAdapterSingleton private constructor() {
                         val aSet = correspondingMap[aInd]!!
                         val newSet: MutableSet<Alias> = mutableSetOf()
                         for (aAlias in aSet) {
-                            newSet.add(aAlias.withNewAccessor(acc))
+                            if (isCorrectBase(aAlias.base)) {
+                                newSet.add(aAlias.withNewAccessor(acc))
+                            }
                         }
                         bSet.addAll(newSet)
                     }
