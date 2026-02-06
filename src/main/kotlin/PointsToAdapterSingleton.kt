@@ -324,19 +324,21 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
-        val f2fs = mutableListOf<F2FEdge>()
-        val z2fs = mutableListOf<Z2FEdge>()
+        val f2fs = mutableSetOf<F2FEdge>()
+        val z2fs = mutableSetOf<Z2FEdge>()
         f2fs.addAll(defaultEdges)
         for ((varInd, aliases) in varIndToSetOfAliases) {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
             for (fromAliasId in fromAliases.stream()) {
                 val fromAlias = aliasIdToAlias[fromAliasId]
-                for (toAliasId in aliases.stream()) {
-                    val toAlias = aliasIdToAlias[toAliasId]
-                    if (isCorrectStartBase(fromAlias.base)
-                        && isCorrectBase(toAlias.base)
-                        && fromAlias.base.getMethodUnifiedName() == toAlias.base.getMethodUnifiedName()) {
+                if (isCorrectStartBase(fromAlias.base)) {
+                    for (toAliasId in aliases.stream()) {
+                        val toAlias = aliasIdToAlias[toAliasId]
+                        if (isCorrectBase(toAlias.base)
+                            && fromAlias.base.getMethodUnifiedName() == toAlias.base.getMethodUnifiedName()
+                        ) {
                             f2fs.add(F2FEdge(fromAlias, toAlias))
+                        }
                     }
                 }
             }
@@ -354,6 +356,6 @@ class PointsToAdapterSingleton private constructor() {
                 }
             }
         }
-        return f2fs.toSet().toList() to z2fs.toSet().toList()
+        return f2fs.toList() to z2fs.toList()
     }
 }
