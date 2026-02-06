@@ -1,5 +1,6 @@
 package ru.mylogininya
 
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import java.util.BitSet
 import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
@@ -137,15 +138,15 @@ class PointsToAdapterSingleton private constructor() {
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
 
     private val aliasIdToAlias = mutableListOf<Alias>()
-    private val aliasToId = mutableMapOf<Alias, Int>()
+    private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap()
 
     private fun getAliasId(alias: Alias): Int {
-        var id = aliasToId[alias]
-        if (id == null) {
-            id = aliasIdToAlias.size
-            aliasToId[alias] = id
-            aliasIdToAlias.add(alias)
+        if (aliasToId.containsKey(alias)) {
+            return aliasToId.getInt(alias)
         }
+        val id = aliasIdToAlias.size
+        aliasToId.put(alias, id)
+        aliasIdToAlias.add(alias)
         return id
     }
 
@@ -171,18 +172,16 @@ class PointsToAdapterSingleton private constructor() {
                     println("Ribs: $progressRibs Changes: $progressChanges") /////
                 //}
                 for (aInd in aInds.stream()) {
-                    for (bInd in bInds.stream()) {
-                        val bSet = correspondingMap[bInd]!!
-                        val aSet = correspondingMap[aInd]!!
-                        val newSet: BitSet = BitSet()
-                        for (aAliasInd in aSet.stream()) {
-                            val aAlias = aliasIdToAlias[aAliasInd]
-                            if (isCorrectBase(aAlias.base)) {
+                    val aSet = correspondingMap[aInd]!!
+                    for (aAliasInd in aSet.stream()) {
+                        val aAlias = aliasIdToAlias[aAliasInd]
+                        if (isCorrectBase(aAlias.base)) {
+                            for (bInd in bInds.stream()) {
+                                val bSet = correspondingMap[bInd]!!
                                 progressChanges += 1 /////
-                                newSet.set(getAliasId(aAlias.withNewAccessor(acc)))
+                                bSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                             }
                         }
-                        bSet.or(newSet)
                     }
                 }
             }

@@ -15,6 +15,7 @@ application {
 }
 
 dependencies {
+    implementation("it.unimi.dsi:fastutil-core:8.5.12")
     testImplementation(kotlin("test"))
 }
 
