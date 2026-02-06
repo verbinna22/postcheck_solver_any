@@ -84,6 +84,8 @@ class PointsToAdapterSingleton private constructor() {
     private val entityToInd = mutableMapOf<PointsToInstance, Int>()
 
     data class Alias(val base: AliasBase, val accessors: List<String>) {
+        private val result = 31 * base.hashCode() + accessors.hashCode()
+
         fun withNewAccessor(accessor: String): Alias {
             if (accessors.size >= 5) {
                 return this
@@ -101,6 +103,20 @@ class PointsToAdapterSingleton private constructor() {
         override fun toString(): String = (listOf("$base") + accessors).joinToString(".")
 
         fun printWithMethod(): String = base.getMethodUnifiedName() + ":" + this.toString()
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            other as Alias
+            if (result != other.result) return false
+            if (base != other.base) return false
+            if (accessors != other.accessors) return false
+            return true
+        }
+
+        override fun hashCode(): Int {
+            return result
+        }
     }
 
     private fun aliasBaseFromString(str: String): AliasBase {
