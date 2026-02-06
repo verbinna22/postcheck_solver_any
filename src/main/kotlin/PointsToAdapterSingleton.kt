@@ -142,8 +142,18 @@ class PointsToAdapterSingleton private constructor() {
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         val graphRibs = if (forStores) storesAndLoads else loads
         var wasChanges = true
+
+        var progressWhile = 0 /////
         while (wasChanges) {
+            progressWhile += 1
+            println("While: $progressWhile") /////
+            var progressRibs = 0 /////
+            var progressChanges = 0 /////
             for ((aInds, acc, bInds) in graphRibs) {
+                progressRibs += 1 /////
+                //if (progressRibs % 10000 == 1) {
+                    println("Ribs: $progressRibs Changes: $progressChanges") /////
+                //}
                 for (aInd in aInds.stream()) {
                     for (bInd in bInds.stream()) {
                         val bSet = correspondingMap[bInd]!!
@@ -152,6 +162,7 @@ class PointsToAdapterSingleton private constructor() {
                         for (aAliasInd in aSet.stream()) {
                             val aAlias = aliasIdToAlias[aAliasInd]
                             if (isCorrectBase(aAlias.base)) {
+                                progressChanges += 1 /////
                                 newSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                             }
                         }
