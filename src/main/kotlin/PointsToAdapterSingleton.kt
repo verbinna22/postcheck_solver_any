@@ -1,5 +1,6 @@
 package ru.mylogininya
 
+import java.util.BitSet
 import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
@@ -78,7 +79,7 @@ class PointsToAdapterSingleton private constructor() {
             else -> pti
         }
 
-    private val varToAliasesMap = mutableMapOf<Int, MutableSet<Int>>()
+    private val varToAliasesMap = mutableMapOf<Int, BitSet>()
     private val indToEntity = mutableMapOf<Int, PointsToInstance>()
     private val entityToInd = mutableMapOf<PointsToInstance, Int>()
 
@@ -102,11 +103,6 @@ class PointsToAdapterSingleton private constructor() {
         fun printWithMethod(): String = base.getMethodUnifiedName() + ":" + this.toString()
     }
 
-    fun aliasFromString(str: String): Alias {
-        val elems = str.split('.')
-        return Alias(aliasBaseFromString(elems[0]), elems.drop(1))
-    }
-
     private fun aliasBaseFromString(str: String): AliasBase {
         return when {
             str == "this" -> PointsToInstance.This("")
@@ -118,30 +114,48 @@ class PointsToAdapterSingleton private constructor() {
 
     private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
     //private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
-    private val storesAndLoads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
-    private val loads: MutableList<Triple<Set<Int>, String, Set<Int>>> = mutableListOf()
-    private val varIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
-    private val varIndToLoadSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
-    private val unknownToIds: MutableMap<String, MutableSet<Int>> = mutableMapOf()
+    private val storesAndLoads: MutableList<Triple<BitSet, String, BitSet>> = mutableListOf()
+    private val loads: MutableList<Triple<BitSet, String, BitSet>> = mutableListOf()
+    private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
+    private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
+    private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
+
+    private val aliasIdToAlias = mutableListOf<Alias>()
+    private val aliasToId = mutableMapOf<Alias, Int>()
+
+    private fun getAliasId(alias: Alias): Int {
+        var id = aliasToId[alias]
+        if (id == null) {
+            id = aliasIdToAlias.size
+            aliasToId[alias] = id
+            aliasIdToAlias.add(alias)
+        }
+        return id
+    }
 
     private fun addAliasesUsingFields(forStores: Boolean) {
+//        val l = mutableListOf<Array<Alias?>>()
+//        while (true) {
+//          l.add(arrayOfNulls(1000000))
+//        }
         var indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         val graphRibs = if (forStores) storesAndLoads else loads
         var wasChanges = true
         while (wasChanges) {
             for ((aInds, acc, bInds) in graphRibs) {
-                for (aInd in aInds) {
-                    for (bInd in bInds) {
+                for (aInd in aInds.stream()) {
+                    for (bInd in bInds.stream()) {
                         val bSet = correspondingMap[bInd]!!
                         val aSet = correspondingMap[aInd]!!
-                        val newSet: MutableSet<Alias> = mutableSetOf()
-                        for (aAlias in aSet) {
+                        val newSet: BitSet = BitSet()
+                        for (aAliasInd in aSet.stream()) {
+                            val aAlias = aliasIdToAlias[aAliasInd]
                             if (isCorrectBase(aAlias.base)) {
-                                newSet.add(aAlias.withNewAccessor(acc))
+                                newSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                             }
                         }
-                        bSet.addAll(newSet)
+                        bSet.or(newSet)
                     }
                 }
             }
@@ -155,9 +169,9 @@ class PointsToAdapterSingleton private constructor() {
 
     private fun createIndToSetOfAliasesSize(forStores: Boolean): Map<Int, Int> {
         if (forStores) {
-            return varIndToSetOfAliases.mapValues { value -> value.value.size }
+            return varIndToSetOfAliases.mapValues { value -> value.value.cardinality() }
         }
-        return varIndToLoadSetOfAliases.mapValues { value -> value.value.size }
+        return varIndToLoadSetOfAliases.mapValues { value -> value.value.cardinality() }
     }
 
     private fun findMethod(savedSignature: String): String {
@@ -176,6 +190,7 @@ class PointsToAdapterSingleton private constructor() {
                     else -> throw IllegalArgumentException("Unknown alias base")
                 }
                 val alias = Alias(pti as AliasBase, listOf())
+                getAliasId(alias)
                 defaultEdges.add(F2FEdge(alias, alias))
             }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
@@ -198,16 +213,16 @@ class PointsToAdapterSingleton private constructor() {
                 } else {
                     indToEntity[id] = pti
                     entityToInd[pti] = id
-                    varToAliasesMap.put(id, mutableSetOf(id))
+                    varToAliasesMap.put(id, BitSet().let { it.set(id); it })
                 }
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
                 val ent1 = indToEntity[var1]!!
                 if (ent1 is PointsToInstance.Unknown) {
-                    unknownToIds.getOrPut(ent1.method) { mutableSetOf() }.add(var2)
+                    unknownToIds.getOrPut(ent1.method) { BitSet() }.set(var2)
                 } else {
-                    varToAliasesMap[var1]!!.add(var2) // reversed combination must be in file
+                    varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
                 }
             }
             (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
@@ -245,15 +260,17 @@ class PointsToAdapterSingleton private constructor() {
             fIndToAccessor.clear()
         }
         for ((variable, vs) in varToAliasesMap) {
-            val aliases = mutableSetOf<Alias>()
+            val aliases = BitSet()
             varIndToSetOfAliases[variable] = aliases
-            for (v in vs) {
+            for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
                 if (entity is AliasBase) {
-                    aliases.add(Alias(entity, listOf()))
+                    val alias = Alias(entity, listOf())
+                    val aliasId = getAliasId(alias)
+                    aliases.set(aliasId)
                 }
             }
-            varIndToLoadSetOfAliases[variable] = aliases.toMutableSet()
+            varIndToLoadSetOfAliases[variable] = aliases.clone() as BitSet
         }
         addAliasesUsingFields(true)
         addAliasesUsingFields(false)
@@ -290,8 +307,10 @@ class PointsToAdapterSingleton private constructor() {
         f2fs.addAll(defaultEdges)
         for ((varInd, aliases) in varIndToSetOfAliases) {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
-            for (fromAlias in fromAliases) {
-                for (toAlias in aliases) {
+            for (fromAliasId in fromAliases.stream()) {
+                val fromAlias = aliasIdToAlias[fromAliasId]
+                for (toAliasId in aliases.stream()) {
+                    val toAlias = aliasIdToAlias[toAliasId]
                     if (isCorrectStartBase(fromAlias.base)
                         && isCorrectBase(toAlias.base)
                         && fromAlias.base.getMethodUnifiedName() == toAlias.base.getMethodUnifiedName()) {
@@ -301,10 +320,11 @@ class PointsToAdapterSingleton private constructor() {
             }
         }
         for ((method, ids) in unknownToIds) {
-            for (id in ids) {
+            for (id in ids.stream()) {
                 val aliases = varIndToSetOfAliases[id]
                 if (aliases != null) {
-                    for (toAlias in aliases) {
+                    for (toAliasId in aliases.stream()) {
+                        val toAlias = aliasIdToAlias[toAliasId]
                         if (isCorrectBase(toAlias.base)) {
                             z2fs.add(Z2FEdge(method, toAlias))
                         }
