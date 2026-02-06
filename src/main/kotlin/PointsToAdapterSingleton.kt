@@ -131,8 +131,8 @@ class PointsToAdapterSingleton private constructor() {
 
     private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
     //private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
-    private val storesAndLoads: MutableList<Triple<BitSet, String, BitSet>> = mutableListOf()
-    private val loads: MutableList<Triple<BitSet, String, BitSet>> = mutableListOf()
+    private val storesAndLoads: MutableList<Triple<Int, String, Int>> = mutableListOf()
+    private val loads: MutableList<Triple<Int, String, Int>> = mutableListOf()
     private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
@@ -166,22 +166,18 @@ class PointsToAdapterSingleton private constructor() {
             println("While: $progressWhile") /////
             var progressRibs = 0 /////
             var progressChanges = 0 /////
-            for ((aInds, acc, bInds) in graphRibs) {
+            for ((aInd, acc, bInd) in graphRibs) {
                 progressRibs += 1 /////
-                //if (progressRibs % 10000 == 1) {
+                if (progressRibs % 10000 == 1) {
                     println("Ribs: $progressRibs Changes: $progressChanges") /////
-                //}
-                for (aInd in aInds.stream()) {
-                    val aSet = correspondingMap[aInd]!!
-                    for (aAliasInd in aSet.stream()) {
-                        val aAlias = aliasIdToAlias[aAliasInd]
-                        if (isCorrectBase(aAlias.base)) {
-                            for (bInd in bInds.stream()) {
-                                val bSet = correspondingMap[bInd]!!
-                                progressChanges += 1 /////
-                                bSet.set(getAliasId(aAlias.withNewAccessor(acc)))
-                            }
-                        }
+                }
+                val aSet = correspondingMap[aInd]!!
+                for (aAliasInd in aSet.stream()) {
+                    val aAlias = aliasIdToAlias[aAliasInd]
+                    if (isCorrectBase(aAlias.base)) {
+                        val bSet = correspondingMap[bInd]!!
+                        progressChanges += 1 /////
+                        bSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                     }
                 }
             }
@@ -275,10 +271,10 @@ class PointsToAdapterSingleton private constructor() {
                     val fInd = items[3].toInt()
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
-                        storesAndLoads.add(Triple(varToAliasesMap[aInd]!!, acc, varToAliasesMap[bInd]!!)) // a.b = c
+                        storesAndLoads.add(Triple(aInd, acc, bInd)) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
                     } else {
-                        storesAndLoads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!))
-                        loads.add(Triple(varToAliasesMap[bInd]!!, acc, varToAliasesMap[aInd]!!)) // c -> a.b | a, b, c
+                        storesAndLoads.add(Triple(bInd, acc, aInd))
+                        loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
                     }
                 }
             }
@@ -290,7 +286,7 @@ class PointsToAdapterSingleton private constructor() {
             varIndToSetOfAliases[variable] = aliases
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase) {
+                if (entity is AliasBase) { // all except alloc is /AliasBase/
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
