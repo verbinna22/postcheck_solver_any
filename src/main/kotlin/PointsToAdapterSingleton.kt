@@ -231,6 +231,7 @@ class PointsToAdapterSingleton private constructor() {
     private fun loadPointsToInformation(homeDirectory: String) = synchronized(this) {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
+        val loadStoreIncidentVs = BitSet()
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
@@ -296,6 +297,8 @@ class PointsToAdapterSingleton private constructor() {
                 if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
                     val aInd = items[0].toInt() * countDirEntries + dirId // base
                     val bInd = items[1].toInt() * countDirEntries + dirId //.field
+                    loadStoreIncidentVs.set(aInd)
+                    loadStoreIncidentVs.set(bInd)
                     val fInd = items[3].toInt()
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
@@ -312,14 +315,18 @@ class PointsToAdapterSingleton private constructor() {
         for ((variable, vs) in varToAliasesMap) {
             val aliases = BitSet()
             varIndToSetOfAliases[variable] = aliases
+            val redundantAliases = BitSet()
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase) { // all except alloc is /AliasBase/
+                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all except alloc is /AliasBase/, aliases only for entrypoints or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
+                } else {
+                    redundantAliases.set(v)
                 }
             }
+            vs.andNot(redundantAliases)
             varIndToLoadSetOfAliases[variable] = aliases.clone() as BitSet
         }
         addAliasesUsingFields(true)
