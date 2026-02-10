@@ -358,9 +358,9 @@ object SummaryChecker {
     private const val errorLog = "/home/nikita/process_taint_with_solver/analysis_errors_solver_v.txt"
 
     private fun reportError(string: String) {
-        println("$string\n") /// TODO: remove \n
+        println("$string") /// TODO: remove \n
         FileWriter(errorLog, true).use { writer ->
-            writer.write("${string}\n\n") /// TODO: remove \n
+            writer.write("${string}\n") /// TODO: remove \n
         }
     }
 
@@ -375,7 +375,7 @@ object SummaryChecker {
     ) {
         FileWriter(fileName, true).use { writer ->
             // "Detected True Negative: $obj from ${methodCall.method}\n")//
-            writer.write("Detected True Negative: $obj from ${methodCall.method}\n")//"Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
+            writer.write("Detected True Negative: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver ($f2fs); detected($detectedPaths); fromZero($z2fs)\n")
         }
     }
 

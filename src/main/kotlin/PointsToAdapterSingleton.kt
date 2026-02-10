@@ -151,6 +151,31 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     private fun addAliasesUsingFields(forStores: Boolean) {
+        // -------
+//        var all = 0UL
+//        var eqn = 0UL
+//        var neqn = 0UL
+//        for ((_, als) in varToAliasesMap) {
+//            for (u in als.stream()) {
+//                val alsu = varToAliasesMap[u]!!
+//                if (all % 10000UL == 0UL) {
+//                    println("All: $all Eq: $eqn Neq: $neqn")
+//                }
+//                all++
+//                if (alsu != als) {
+//                    neqn++
+//                } else {
+//                    eqn++
+//                }
+//                if (all > 8000000000UL) {
+//                    break
+//                }
+//            }
+//            if (all > 8000000000UL) {
+//                break
+//            }
+//        }
+        // -------
 //        val l = mutableListOf<Array<Alias?>>()
 //        while (true) {
 //          l.add(arrayOfNulls(1000000))
@@ -168,16 +193,19 @@ class PointsToAdapterSingleton private constructor() {
             var progressChanges = 0 /////
             for ((aInd, acc, bInd) in graphRibs) {
                 progressRibs += 1 /////
-                if (progressRibs % 10000 == 1) {
+//                if (progressRibs % 10000 == 1) {
                     println("Ribs: $progressRibs Changes: $progressChanges") /////
-                }
+//                }
                 val aSet = correspondingMap[aInd]!!
                 for (aAliasInd in aSet.stream()) {
                     val aAlias = aliasIdToAlias[aAliasInd]
                     if (isCorrectBase(aAlias.base)) {
-                        val bSet = correspondingMap[bInd]!!
-                        progressChanges += 1 /////
-                        bSet.set(getAliasId(aAlias.withNewAccessor(acc)))
+                        val bSynonims = varToAliasesMap[bInd]!!
+                        for (bSynInd in bSynonims.stream()) {
+                            val bSynSet = correspondingMap[bSynInd]!!
+                            bSynSet.set(getAliasId(aAlias.withNewAccessor(acc)))
+                            progressChanges += 1 /////
+                        }
                     }
                 }
             }
