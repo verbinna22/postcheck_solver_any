@@ -162,6 +162,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
     private val aliasIdToAlias = mutableListOf<Alias>()
     private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap()
+    private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
 
     private fun getAliasId(alias: Alias): Int {
         if (aliasToId.containsKey(alias)) {
@@ -303,6 +304,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                 if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
+                    aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(v);
                     aliases.set(aliasId)
                 } else {
                     redundantAliases.set(v)
@@ -311,8 +313,28 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
             vs.andNot(redundantAliases)
             varIndToLoadSetOfAliases[variable] = aliases.clone() as BitSet
         }
-        addAliasesUsingFields(true)
         addAliasesUsingFields(false)
+        for ((fromAl, toAl) in currentF2fEdges) {
+            val fromId = getAliasId(fromAl)
+            val toId = getAliasId(toAl)
+            if (fromId != toId && aliasIdToVarIds.containsKey(fromId) && aliasIdToVarIds.containsKey(toId)) {
+                for (var1 in aliasIdToVarIds[fromId]!!.stream()) {
+                    for (var2 in aliasIdToVarIds[toId]!!.stream()) {
+                        varToAliasesMap[var2]!!.or(varToAliasesMap[var1]!!)
+                        varIndToSetOfAliases[var2]!!.or(varToAliasesMap[var1]!!)
+                        val entity = indToEntity[var2]!!
+                        if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(var2))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
+                            val alias = Alias(entity, listOf())
+                            val aliasId = getAliasId(alias)
+                            varToAliasesMap[var1]!!.set(var2)
+                            aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(var2);
+                            varIndToSetOfAliases[var1]!!.set(aliasId)
+                        }
+                    }
+                }
+            }
+        }
+        addAliasesUsingFields(true)
     }
 
     data class F2FEdge(val from: Alias, val to: Alias) {
@@ -349,7 +371,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                     for (toAliasId in aliases.stream()) {
                         val toAlias = aliasIdToAlias[toAliasId]
                         if (isCorrectBase(toAlias.base)
-                            &&toAlias.base.getMethodName() == methodName
+                            && toAlias.base.getMethodName() == methodName
                             && fromAlias.base.getMethodName() == methodName
                         ) {
                             f2fs.add(F2FEdge(fromAlias, toAlias))
