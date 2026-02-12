@@ -55,8 +55,6 @@ class PointsToAdapterSingleton private constructor() {
                 throw IllegalStateException("must not be LocalVar")
             }
         }
-
-        data class AllocationSite(val alias: Alias, val tp: String) : PointsToInstance
         data class Argument(val method: String, val index: Int, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "arg($index)"
             override fun getMethodName(): String = method
@@ -120,17 +118,7 @@ class PointsToAdapterSingleton private constructor() {
         }
     }
 
-    private fun aliasBaseFromString(str: String): AliasBase {
-        return when {
-            str == "this" -> PointsToInstance.This("")
-            str == "RV" -> PointsToInstance.ReturnValue("")
-            str.startsWith("arg(") -> PointsToInstance.Argument("", str.removePrefix("arg(").removeSuffix(")").toInt())
-            else -> throw IllegalArgumentException("Unknown alias base")
-        }
-    }
-
     private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
-    //private val objIndToSetOfAliases: MutableMap<Int, MutableSet<Alias>> = mutableMapOf()
     private val storesAndLoads: MutableList<Triple<Int, String, Int>> = mutableListOf()
     private val loads: MutableList<Triple<Int, String, Int>> = mutableListOf()
     private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
@@ -151,35 +139,6 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     private fun addAliasesUsingFields(forStores: Boolean) {
-        // -------
-//        var all = 0UL
-//        var eqn = 0UL
-//        var neqn = 0UL
-//        for ((_, als) in varToAliasesMap) {
-//            for (u in als.stream()) {
-//                val alsu = varToAliasesMap[u]!!
-//                if (all % 10000UL == 0UL) {
-//                    println("All: $all Eq: $eqn Neq: $neqn")
-//                }
-//                all++
-//                if (alsu != als) {
-//                    neqn++
-//                } else {
-//                    eqn++
-//                }
-//                if (all > 8000000000UL) {
-//                    break
-//                }
-//            }
-//            if (all > 8000000000UL) {
-//                break
-//            }
-//        }
-        // -------
-//        val l = mutableListOf<Array<Alias?>>()
-//        while (true) {
-//          l.add(arrayOfNulls(1000000))
-//        }
         var indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         val graphRibs = if (forStores) storesAndLoads else loads
@@ -200,8 +159,8 @@ class PointsToAdapterSingleton private constructor() {
                 for (aAliasInd in aSet.stream()) {
                     val aAlias = aliasIdToAlias[aAliasInd]
                     if (isCorrectBase(aAlias.base)) {
-                        val bSynonims = varToAliasesMap[bInd]!!
-                        for (bSynInd in bSynonims.stream()) {
+                        val bSynonyms = varToAliasesMap[bInd]!!
+                        for (bSynInd in bSynonyms.stream()) {
                             val bSynSet = correspondingMap[bSynInd]!!
                             bSynSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                             progressChanges += 1 /////
@@ -224,10 +183,6 @@ class PointsToAdapterSingleton private constructor() {
         return varIndToLoadSetOfAliases.mapValues { value -> value.value.cardinality() }
     }
 
-    private fun findMethod(savedSignature: String): String {
-        return savedSignature
-    }
-
     private fun loadPointsToInformation(homeDirectory: String) = synchronized(this) {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
@@ -236,8 +191,8 @@ class PointsToAdapterSingleton private constructor() {
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
                 val pti = when (items[0]) {
-                    "this" -> findMethod(items[1])?.let { PointsToInstance.This(it, true) }
-                    "arg" -> findMethod(items[1])?.let { PointsToInstance.Argument(it, items[2].toInt(), true) }
+                    "this" -> items[1].let { PointsToInstance.This(it, true) }
+                    "arg" -> items[1].let { PointsToInstance.Argument(it, items[2].toInt(), true) }
                     else -> throw IllegalArgumentException("Unknown alias base")
                 }
                 val alias = Alias(pti as AliasBase, listOf())
@@ -248,11 +203,11 @@ class PointsToAdapterSingleton private constructor() {
                 val items = line.split("@@")
                 val id = items[0].toInt() * countDirEntries + dirId
                 val pti = when (items[1]) {
-                    "this" -> findMethod(items[2])?.let { PointsToInstance.This(it) }
-                    "local" -> findMethod(items[2])?.let { PointsToInstance.LocalVar(it, items[6].toInt()) }
+                    "this" -> items[2].let { PointsToInstance.This(it) }
+                    "local" -> items[2].let { PointsToInstance.LocalVar(it, items[6].toInt()) }
                     "temp" -> PointsToInstance.Rubbish(id)
-                    "arg" -> findMethod(items[2])?.let { PointsToInstance.Argument(it, items[3].toInt()) }
-                    "return" -> findMethod(items[2])?.let { PointsToInstance.ReturnValue(it) }
+                    "arg" -> items[2].let { PointsToInstance.Argument(it, items[3].toInt()) }
+                    "return" -> items[2].let { PointsToInstance.ReturnValue(it) }
                     "staticcontext" -> PointsToInstance.Rubbish(id)
                     "staticalloc" -> PointsToInstance.Rubbish(id)
                     "unknown" -> PointsToInstance.Unknown(items[2])
@@ -350,11 +305,11 @@ class PointsToAdapterSingleton private constructor() {
 
     private val defaultEdges = mutableListOf<F2FEdge>()
 
-    fun isCorrectBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
+    fun isCorrectBase(base: AliasBase): Boolean {
         return isCorrectStartBase(base) || base is PointsToInstance.ReturnValue && base.isEntryPoint
     }
 
-    fun isCorrectStartBase(base: PointsToAdapterSingleton.AliasBase): Boolean {
+    fun isCorrectStartBase(base: AliasBase): Boolean {
         return base is PointsToInstance.This && base.isEntryPoint || base is PointsToInstance.Argument && base.isEntryPoint
     }
 
