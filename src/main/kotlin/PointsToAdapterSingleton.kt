@@ -15,8 +15,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
     companion object {
         val methodList = mutableListOf<String>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
-        val currentF2fEdges = mutableListOf<F2FEdge>()
-        val currentZ2FEdges = mutableListOf<Z2FEdge>()
+        val currentF2fEdges = mutableSetOf<F2FEdge>()
+        val currentZ2FEdges = mutableSetOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
         private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
 
@@ -53,7 +53,30 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         }
 
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
-            TODO()
+            for (method in methodList) {
+                val (f2f, z2f) = PointsToAdapterSingleton(method).findEdges()
+                currentF2fEdges += f2f
+                currentZ2FEdges += z2f
+            }
+            currentF2fEdges.addAll(defaultEdges)
+            return currentF2fEdges.filter {
+                val from = it.from.base
+                when (from) {
+                    is PointsToInstance.Argument -> from.isEntryPoint
+                    is PointsToInstance.ReturnValue -> from.isEntryPoint
+                    is PointsToInstance.This -> from.isEntryPoint
+                    else -> throw IllegalArgumentException("Unsupported alias base")
+                }
+            }.toList() to
+                    currentZ2FEdges.filter {
+                        val to = it.to.base
+                        when (to) {
+                            is PointsToInstance.Argument -> to.isEntryPoint
+                            is PointsToInstance.ReturnValue -> to.isEntryPoint
+                            is PointsToInstance.This -> to.isEntryPoint
+                            else -> throw IllegalArgumentException("Unsupported alias base")
+                        }
+                    }.toList()
         }
     }
 
@@ -181,16 +204,16 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         val graphRibs = if (forStores) storesAndLoads else loads
         var wasChanges = true
 
-        var progressWhile = 0 /////
+//        var progressWhile = 0 /////
         while (wasChanges) {
-            progressWhile += 1
-            println("While: $progressWhile") /////
-            var progressRibs = 0 /////
-            var progressChanges = 0 /////
+//            progressWhile += 1
+//            println("While: $progressWhile") /////
+//            var progressRibs = 0 /////
+//            var progressChanges = 0 /////
             for ((aInd, acc, bInd) in graphRibs) {
-                progressRibs += 1 /////
+//                progressRibs += 1 /////
 //                if (progressRibs % 10000 == 1) {
-                    println("Ribs: $progressRibs Changes: $progressChanges") /////
+//                    println("Ribs: $progressRibs Changes: $progressChanges") /////
 //                }
                 val aSet = correspondingMap[aInd]!!
                 for (aAliasInd in aSet.stream()) {
@@ -200,7 +223,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                         for (bSynInd in bSynonyms.stream()) {
                             val bSynSet = correspondingMap[bSynInd]!!
                             bSynSet.set(getAliasId(aAlias.withNewAccessor(acc)))
-                            progressChanges += 1 /////
+//                            progressChanges += 1 /////
                         }
                     }
                 }
@@ -361,7 +384,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         return base is PointsToInstance.This || base is PointsToInstance.Argument
     }
 
-    fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
+    fun findEdges(): Pair<Set<F2FEdge>, Set<Z2FEdge>> {
         val f2fs = mutableSetOf<F2FEdge>()
         val z2fs = mutableSetOf<Z2FEdge>()
         for ((varInd, aliases) in varIndToSetOfAliases) {
@@ -410,6 +433,6 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                 }
             }
         }
-        return f2fs.toList() to z2fs.toList()
+        return f2fs to z2fs
     }
 }
