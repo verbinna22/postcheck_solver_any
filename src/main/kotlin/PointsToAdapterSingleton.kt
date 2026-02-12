@@ -16,6 +16,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         val methodList = mutableListOf<String>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
         val currentF2fEdges = mutableListOf<F2FEdge>()
+        val currentZ2FEdges = mutableListOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
         private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
 
@@ -388,6 +389,22 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                         val toAlias = aliasIdToAlias[toAliasId]
                         if (isCorrectBase(toAlias.base)) {
                             z2fs.add(Z2FEdge(method, toAlias))
+                        }
+                    }
+                }
+            }
+        }
+        for ((method, al) in currentZ2FEdges) {
+            val alId = getAliasId(al)
+            if (aliasIdToVarIds.containsKey(alId)) {
+                for (id in aliasIdToVarIds[alId]!!.stream()) {
+                    val aliases = varIndToSetOfAliases[id]
+                    if (aliases != null) {
+                        for (toAliasId in aliases.stream()) {
+                            val toAlias = aliasIdToAlias[toAliasId]
+                            if (isCorrectBase(toAlias.base)) {
+                                z2fs.add(Z2FEdge(method, toAlias))
+                            }
                         }
                     }
                 }
