@@ -8,10 +8,6 @@ import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
 
 class PointsToAdapterSingleton private constructor(val methodName: String) {
-    init {
-        loadPointsToInformation(homeDirectory)
-    }
-
     companion object {
         val methodList = mutableListOf<String>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
@@ -53,10 +49,13 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         }
 
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
+            var methodId = 1 /////
             for (method in methodList) {
+                println("$methodId) $method")
                 val (f2f, z2f) = PointsToAdapterSingleton(method).findEdges()
                 currentF2fEdges += f2f
                 currentZ2FEdges += z2f
+                methodId += 1 /////
             }
             currentF2fEdges.addAll(defaultEdges)
             return currentF2fEdges.filter {
@@ -188,6 +187,10 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
     private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap()
     private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
 
+    init {
+        loadPointsToInformation(homeDirectory)
+    }
+
     private fun getAliasId(alias: Alias): Int {
         if (aliasToId.containsKey(alias)) {
             return aliasToId.getInt(alias)
@@ -243,7 +246,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         return varIndToLoadSetOfAliases.mapValues { value -> value.value.cardinality() }
     }
 
-    private fun loadPointsToInformation(homeDirectory: String) = synchronized(this) {
+    private fun loadPointsToInformation(homeDirectory: String) {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
         val loadStoreIncidentVs = BitSet()
