@@ -358,9 +358,9 @@ object SummaryChecker {
     private const val errorLog = "/home/nikita/process_taint_with_solver/analysis_errors_solver_v.txt"
 
     private fun reportError(string: String) {
-        println("$string") /// TODO: remove \n
+        println("$string")
         FileWriter(errorLog, true).use { writer ->
-            writer.write("${string}\n") /// TODO: remove \n
+            writer.write("${string}\n")
         }
     }
 

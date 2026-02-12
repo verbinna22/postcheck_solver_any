@@ -7,21 +7,52 @@ import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
 
-class PointsToAdapterSingleton private constructor() {
-    companion object {
-        @Volatile
-        private var instance: PointsToAdapterSingleton? = null
+class PointsToAdapterSingleton private constructor(val methodName: String) {
+    init {
+        loadPointsToInformation(homeDirectory)
+    }
 
-        fun getInstance(): PointsToAdapterSingleton {
-            if (instance == null) {
-                synchronized(this) {
-                    if (instance == null) {
-                        instance = PointsToAdapterSingleton()
-                        instance!!.loadPointsToInformation("/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs")
+    companion object {
+        val methodList = mutableListOf<String>()
+        const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
+        val currentF2fEdges = mutableListOf<F2FEdge>()
+        val defaultEdges = mutableListOf<F2FEdge>()
+        private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
+
+        init {
+            val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
+            var dirId = 0
+            Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
+                (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
+                    methodList.add(line)
+                }
+                (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
+                    val items = line.split("@@")
+                    val pti = when (items[0]) {
+                        "this" -> items[1].let { PointsToInstance.This(it, true) }
+                        "arg" -> items[1].let { PointsToInstance.Argument(it, items[2].toInt(), true) }
+                        else -> throw IllegalArgumentException("Unknown alias base")
+                    }
+                    val alias = Alias(pti as AliasBase, listOf())
+                    defaultEdges.add(F2FEdge(alias, alias))
+                }
+                (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
+                    val (num, rest) = line.split("@@")
+                    val number = num.toInt() * countDirEntries + dirId
+                    fIndToAccessor[number] = if (rest == "PtArrayElementField") {
+                        "[*]"
+                    } else {
+                        val declaration = rest.split("field=")[1].removeSuffix(")")
+                        val (_, fieldName) = declaration.split("#")
+                        fieldName
                     }
                 }
+                dirId += 1
             }
-            return instance!!
+        }
+
+        fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
+            TODO()
         }
     }
 
@@ -30,6 +61,9 @@ class PointsToAdapterSingleton private constructor() {
 
         fun getMethodUnifiedName(): String {
             val name = getMethodName()
+            if (!(this is PointsToInstance.This || this is PointsToInstance.Argument || this is PointsToInstance.ReturnValue)) {
+                throw IllegalStateException("must not be this, arg, rv")
+            }
             if (name.contains("<")) {
                 throw IllegalStateException("must not contain <")
             }
@@ -40,33 +74,37 @@ class PointsToAdapterSingleton private constructor() {
     }
 
     sealed interface PointsToInstance {
-        data class Rubbish(val u: Int) : PointsToInstance, AliasBase {
+        fun getMethodName(): String
+        fun isOkWithMethod(m: String): Boolean = getMethodName() == m
+
+        data class Rubbish(val u: Int, val appropriate: Boolean) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
                 throw IllegalStateException("must not be Rubbish")
             }
+
+            override fun isOkWithMethod(m: String): Boolean = appropriate
         }
 
         data class This(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "this"
             override fun getMethodName(): String = method
+            override fun isOkWithMethod(m: String): Boolean = true
         }
         data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase {
-            override fun getMethodName(): String {
-                throw IllegalStateException("must not be LocalVar")
-            }
+            override fun getMethodName(): String = method
         }
         data class Argument(val method: String, val index: Int, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "arg($index)"
             override fun getMethodName(): String = method
+            override fun isOkWithMethod(m: String): Boolean = true
         }
         data class ReturnValue(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "return"
             override fun getMethodName(): String = method
+            override fun isOkWithMethod(m: String): Boolean = true
         }
-        data class Unknown(val method: String) : PointsToInstance, AliasBase {
-            override fun getMethodName(): String {
-                throw IllegalStateException("must not be Unknown")
-            }
+        data class Unknown(val stdLibMethod: String, val method: String) : PointsToInstance, AliasBase {
+            override fun getMethodName(): String = method
         }
     }
 
@@ -77,10 +115,6 @@ class PointsToAdapterSingleton private constructor() {
             is PointsToInstance.This -> PointsToInstance.This(pti.method, true)
             else -> pti
         }
-
-    private val varToAliasesMap = mutableMapOf<Int, BitSet>()
-    private val indToEntity = mutableMapOf<Int, PointsToInstance>()
-    private val entityToInd = mutableMapOf<PointsToInstance, Int>()
 
     data class Alias(val base: AliasBase, val accessors: List<String>) {
         private val result = 31 * base.hashCode() + accessors.hashCode()
@@ -118,13 +152,14 @@ class PointsToAdapterSingleton private constructor() {
         }
     }
 
-    private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
+    private val varToAliasesMap = mutableMapOf<Int, BitSet>()
+    private val indToEntity = mutableMapOf<Int, PointsToInstance>()
+    private val entityToInd = mutableMapOf<PointsToInstance, Int>()
     private val storesAndLoads: MutableList<Triple<Int, String, Int>> = mutableListOf()
     private val loads: MutableList<Triple<Int, String, Int>> = mutableListOf()
     private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
-
     private val aliasIdToAlias = mutableListOf<Alias>()
     private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap()
 
@@ -188,35 +223,24 @@ class PointsToAdapterSingleton private constructor() {
         var dirId = 0
         val loadStoreIncidentVs = BitSet()
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
-            (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
-                val items = line.split("@@")
-                val pti = when (items[0]) {
-                    "this" -> items[1].let { PointsToInstance.This(it, true) }
-                    "arg" -> items[1].let { PointsToInstance.Argument(it, items[2].toInt(), true) }
-                    else -> throw IllegalArgumentException("Unknown alias base")
-                }
-                val alias = Alias(pti as AliasBase, listOf())
-                getAliasId(alias)
-                defaultEdges.add(F2FEdge(alias, alias))
-            }
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
                 val id = items[0].toInt() * countDirEntries + dirId
                 val pti = when (items[1]) {
                     "this" -> items[2].let { PointsToInstance.This(it) }
                     "local" -> items[2].let { PointsToInstance.LocalVar(it, items[6].toInt()) }
-                    "temp" -> PointsToInstance.Rubbish(id)
+                    "temp" -> PointsToInstance.Rubbish(id, items[4] == methodName)
                     "arg" -> items[2].let { PointsToInstance.Argument(it, items[3].toInt()) }
                     "return" -> items[2].let { PointsToInstance.ReturnValue(it) }
-                    "staticcontext" -> PointsToInstance.Rubbish(id)
-                    "staticalloc" -> PointsToInstance.Rubbish(id)
-                    "unknown" -> PointsToInstance.Unknown(items[2])
-                    "alloc" -> PointsToInstance.Rubbish(id)
+                    "staticcontext" -> PointsToInstance.Rubbish(id, true)
+                    "staticalloc" -> PointsToInstance.Rubbish(id, false)
+                    "unknown" -> PointsToInstance.Unknown(items[2], items[3])
+                    "alloc" -> PointsToInstance.Rubbish(id, false)
                     else -> null
                 }
                 if (pti == null) {
                     println("Unsupported value of $items")
-                } else {
+                } else if (pti.isOkWithMethod(methodName)) {
                     indToEntity[id] = pti
                     entityToInd[pti] = id
                     varToAliasesMap.put(id, BitSet().let { it.set(id); it })
@@ -224,48 +248,51 @@ class PointsToAdapterSingleton private constructor() {
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-                val ent1 = indToEntity[var1]!!
-                if (ent1 is PointsToInstance.Unknown) {
-                    unknownToIds.getOrPut(ent1.method) { BitSet() }.set(var2)
-                } else {
-                    varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
-                }
-            }
-            (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
-                val (num, rest) = line.split("@@")
-                val number = num.toInt()
-                fIndToAccessor[number] = if (rest == "PtArrayElementField") {
-                    "[*]"
-                } else {
-                    val declaration = rest.split("field=")[1].removeSuffix(")")
-                    val (_, fieldName) = declaration.split("#")
-                    fieldName
+                val ent1 = indToEntity[var1]
+                val ent2 = indToEntity[var2]
+                if (ent1 != null && ent2 != null) {
+                    if (ent1 is PointsToInstance.Unknown) {
+                        unknownToIds.getOrPut(ent1.stdLibMethod) { BitSet() }.set(var2)
+                    } else {
+                        varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
+                    }
                 }
             }
             (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
                 val items = line.split(" ", "\t")
                 if (items[2] == "entrypoint") {
                     val var1 = items[0].toInt() * countDirEntries + dirId
-                    indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
-                    entityToInd[indToEntity[var1]!!] = var1
+                    if (indToEntity[var1] != null) {
+                        indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
+                        entityToInd[indToEntity[var1]!!] = var1
+                    }
                 }
                 if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
                     val aInd = items[0].toInt() * countDirEntries + dirId // base
                     val bInd = items[1].toInt() * countDirEntries + dirId //.field
-                    loadStoreIncidentVs.set(aInd)
-                    loadStoreIncidentVs.set(bInd)
-                    val fInd = items[3].toInt()
-                    val acc = fIndToAccessor[fInd]!!
-                    if (items[2] == "store_i") {
-                        storesAndLoads.add(Triple(aInd, acc, bInd)) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
-                    } else {
-                        storesAndLoads.add(Triple(bInd, acc, aInd))
-                        loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
+                    val entA = indToEntity[aInd]
+                    val entB = indToEntity[bInd]
+                    if (entA != null && entB != null) {
+                        loadStoreIncidentVs.set(aInd)
+                        loadStoreIncidentVs.set(bInd)
+                        val fInd = items[3].toInt() * countDirEntries + dirId
+                        val acc = fIndToAccessor[fInd]!!
+                        if (items[2] == "store_i") {
+                            storesAndLoads.add(
+                                Triple(
+                                    aInd,
+                                    acc,
+                                    bInd
+                                )
+                            ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
+                        } else {
+                            storesAndLoads.add(Triple(bInd, acc, aInd))
+                            loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
+                        }
                     }
                 }
             }
             dirId += 1
-            fIndToAccessor.clear()
         }
         for ((variable, vs) in varToAliasesMap) {
             val aliases = BitSet()
@@ -273,7 +300,7 @@ class PointsToAdapterSingleton private constructor() {
             val redundantAliases = BitSet()
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all except alloc is /AliasBase/, aliases only for entrypoints or load - store ribs
+                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
@@ -303,20 +330,17 @@ class PointsToAdapterSingleton private constructor() {
         fun printWithMethod(): String = "$msg| ${to.printWithMethod()}"
     }
 
-    private val defaultEdges = mutableListOf<F2FEdge>()
-
     fun isCorrectBase(base: AliasBase): Boolean {
-        return isCorrectStartBase(base) || base is PointsToInstance.ReturnValue && base.isEntryPoint
+        return isCorrectStartBase(base) || base is PointsToInstance.ReturnValue
     }
 
     fun isCorrectStartBase(base: AliasBase): Boolean {
-        return base is PointsToInstance.This && base.isEntryPoint || base is PointsToInstance.Argument && base.isEntryPoint
+        return base is PointsToInstance.This || base is PointsToInstance.Argument
     }
 
     fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
         val f2fs = mutableSetOf<F2FEdge>()
         val z2fs = mutableSetOf<Z2FEdge>()
-        f2fs.addAll(defaultEdges)
         for ((varInd, aliases) in varIndToSetOfAliases) {
             val fromAliases = varIndToLoadSetOfAliases[varInd]!!
             for (fromAliasId in fromAliases.stream()) {
@@ -325,7 +349,8 @@ class PointsToAdapterSingleton private constructor() {
                     for (toAliasId in aliases.stream()) {
                         val toAlias = aliasIdToAlias[toAliasId]
                         if (isCorrectBase(toAlias.base)
-                            && fromAlias.base.getMethodUnifiedName() == toAlias.base.getMethodUnifiedName()
+                            &&toAlias.base.getMethodName() == methodName
+                            && fromAlias.base.getMethodName() == methodName
                         ) {
                             f2fs.add(F2FEdge(fromAlias, toAlias))
                         }

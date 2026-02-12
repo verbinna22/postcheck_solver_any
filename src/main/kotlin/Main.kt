@@ -1,7 +1,7 @@
 package ru.mylogininya
 
 fun main() {
-    val (edges, markedEdges) = PointsToAdapterSingleton.getInstance().findEdges()
+    val (edges, markedEdges) = PointsToAdapterSingleton.findEdges()
     // --------
     println("${edges.size} edges")
     edges.forEach { edge -> println(edge.printWithMethod()) }
