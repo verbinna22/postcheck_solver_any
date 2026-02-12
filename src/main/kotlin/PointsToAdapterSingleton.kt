@@ -197,16 +197,30 @@ class PointsToAdapterSingleton private constructor() {
                     println("Ribs: $progressRibs Changes: $progressChanges") /////
 //                }
                 val aSet = correspondingMap[aInd]!!
-                for (aAliasInd in aSet.stream()) {
-                    val aAlias = aliasIdToAlias[aAliasInd]
-                    if (isCorrectBase(aAlias.base)) {
-                        val bSynonims = varToAliasesMap[bInd]!!
-                        for (bSynInd in bSynonims.stream()) {
-                            val bSynSet = correspondingMap[bSynInd]!!
-                            bSynSet.set(getAliasId(aAlias.withNewAccessor(acc)))
+                if (aSet.get(bInd)) {
+                    val orSet = BitSet()
+                    for (aAliasInd in aSet.stream()) {
+                        val aAlias = aliasIdToAlias[aAliasInd]
+                        if (isCorrectBase(aAlias.base)) {
+                            orSet.set(getAliasId(aAlias.withNewAccessor(acc)))
                             progressChanges += 1 /////
                         }
                     }
+                    aSet.or(orSet)
+                } else {
+                    var aliasesProgress = 0 /////
+                    var aliasesProgressPos = 0 /////
+                    for (aAliasInd in aSet.stream()) {
+                        aliasesProgress += 1 /////
+                        val aAlias = aliasIdToAlias[aAliasInd]
+                        if (isCorrectBase(aAlias.base)) {
+                            aliasesProgressPos += 1 /////
+                            val bSet = correspondingMap[bInd]!!
+                            bSet.set(getAliasId(aAlias.withNewAccessor(acc)))
+                            progressChanges += 1 /////
+                        }
+                    }
+                    println("Alias progress: $aliasesProgress Pos: $aliasesProgressPos") /////
                 }
             }
             val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
@@ -232,6 +246,7 @@ class PointsToAdapterSingleton private constructor() {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
         val loadStoreIncidentVs = BitSet()
+        val varToAlGraphMap = mutableMapOf<Int, BitSet>()
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
@@ -264,7 +279,7 @@ class PointsToAdapterSingleton private constructor() {
                 } else {
                     indToEntity[id] = pti
                     entityToInd[pti] = id
-                    varToAliasesMap.put(id, BitSet().let { it.set(id); it })
+                    varToAlGraphMap.put(id, BitSet().let { it.set(id); it })
                 }
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
@@ -273,7 +288,7 @@ class PointsToAdapterSingleton private constructor() {
                 if (ent1 is PointsToInstance.Unknown) {
                     unknownToIds.getOrPut(ent1.method) { BitSet() }.set(var2)
                 } else {
-                    varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
+                    varToAlGraphMap[var1]!!.set(var2) // reversed combination must be in file
                 }
             }
             (projectDirectory / "field_mappings.txt").bufferedReader().forEachLine { line ->
@@ -312,22 +327,36 @@ class PointsToAdapterSingleton private constructor() {
             dirId += 1
             fIndToAccessor.clear()
         }
-        for ((variable, vs) in varToAliasesMap) {
+        for ((variable, _) in varToAlGraphMap) {
+            if (varToAliasesMap[variable] != null) {
+                continue
+            }
+            val q = mutableListOf<Int>(variable)
+            val intAliases = BitSet()
             val aliases = BitSet()
+            val loadAliases = BitSet()
+            varToAliasesMap[variable] = intAliases
             varIndToSetOfAliases[variable] = aliases
-            val redundantAliases = BitSet()
-            for (v in vs.stream()) {
+            varIndToLoadSetOfAliases[variable] = loadAliases
+            while (q.isNotEmpty()) {
+                val v = q.removeLast()
+                intAliases.set(v)
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all except alloc is /AliasBase/, aliases only for entrypoints or load - store ribs
+                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) {
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
-                } else {
-                    redundantAliases.set(v)
+                    loadAliases.set(aliasId)
+                }
+                for (u in varToAlGraphMap[v]!!.stream()) {
+                    if (varToAliasesMap[u] == null) {
+                        varToAliasesMap[u] = intAliases
+                        varIndToSetOfAliases[u] = aliases
+                        varIndToLoadSetOfAliases[u] = loadAliases
+                        q.add(u)
+                    }
                 }
             }
-            vs.andNot(redundantAliases)
-            varIndToLoadSetOfAliases[variable] = aliases.clone() as BitSet
         }
         addAliasesUsingFields(true)
         addAliasesUsingFields(false)
