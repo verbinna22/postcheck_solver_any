@@ -20,7 +20,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         var pairList: List<Pair<Int, Int>>? = null
         var graphList: List<Pair<List<Int>, List<String>>>? = null
         val loadStoreIncidentVs = BitSet()
-
+        val epVertices = BitSet()
 
         init {
             val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
@@ -80,7 +80,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
                     val items = line.split(" ", "\t")
                     if (items[2] == "entrypoint") {
-                        gList.add(items.take(1).map { it.toInt() * countDirEntries + dirId }.toList() to items)
+                        epVertices.set(items[0].toInt() * countDirEntries + dirId)
                     } else if (items[2] == "load_i" || items[2] == "store_i") {
                         gList.add(listOf(items[0], items[1], items[3]).map { it.toInt() * countDirEntries + dirId }.toList() to items)
                         loadStoreIncidentVs.set(gList.last().first[0])
@@ -97,7 +97,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
             var methodId = 1 /////
             for ((method, depsWithCur) in methodList) {
-                println("$methodId) $method")
+                if (methodId % 10 == 1) {
+                    println("$methodId) $method")
+                }
                 val (f2f, z2f) = PointsToAdapterSingleton(method, depsWithCur).findEdges()
                 currentF2fEdges += f2f
                 currentZ2FEdges += z2f
@@ -293,13 +295,16 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun loadPointsToInformation() {
-
         for ((id, pti) in ptis!!) {
             if (pti == null) {
                 println("Unsupported value of $id")
             } else if (pti.isOkWithMethod(methodName, depsWithCur)) {
-                indToEntity[id] = pti
-                entityToInd[pti] = id
+                var ptiUpd = pti
+                if (epVertices.get(id)) {
+                    ptiUpd = toEntryPoint(pti)
+                }
+                indToEntity[id] = ptiUpd
+                entityToInd[ptiUpd] = id
                 varToAliasesMap.put(id, BitSet().let { it.set(id); it })
             }
         }
@@ -315,33 +320,24 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
         }
         for ((vars, items) in graphList!!) {
-            if (items[2] == "entrypoint") {
-                val var1 = vars[0]
-                if (indToEntity[var1] != null) {
-                    indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
-                    entityToInd[indToEntity[var1]!!] = var1
-                }
-            }
-            if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
-                val aInd = vars[0] // base
-                val bInd = vars[1] //.field
-                val entA = indToEntity[aInd]
-                val entB = indToEntity[bInd]
-                if (entA != null && entB != null) {
-                    val fInd = vars[2]
-                    val acc = fIndToAccessor[fInd]!!
-                    if (items[2] == "store_i") {
-                        storesAndLoads.add(
-                            Triple(
-                                aInd,
-                                acc,
-                                bInd
-                            )
-                        ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
-                    } else {
-                        storesAndLoads.add(Triple(bInd, acc, aInd))
-                        loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
-                    }
+            val aInd = vars[0] // base
+            val bInd = vars[1] //.field
+            val entA = indToEntity[aInd]
+            val entB = indToEntity[bInd]
+            if (entA != null && entB != null) {
+                val fInd = vars[2]
+                val acc = fIndToAccessor[fInd]!!
+                if (items[2] == "store_i") {
+                    storesAndLoads.add(
+                        Triple(
+                            aInd,
+                            acc,
+                            bInd
+                        )
+                    ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
+                } else {
+                    storesAndLoads.add(Triple(bInd, acc, aInd))
+                    loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
                 }
             }
         }
