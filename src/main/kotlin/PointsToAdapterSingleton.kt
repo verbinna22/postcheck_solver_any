@@ -8,7 +8,7 @@ import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
 
-class PointsToAdapterSingleton private constructor(val methodName: String, val deps: Set<String>) {
+class PointsToAdapterSingleton private constructor(val methodName: String, val depsWithCur: Set<String>) {
     companion object {
         val methodList = mutableListOf<Pair<String, Set<String>>>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
@@ -16,7 +16,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         val currentZ2FEdges = mutableSetOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
         private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
-        var ptiList: List<Pair<Int, List<String>>>? = null
+        var ptis: List<Pair<Int, PointsToInstance?>>? = null
         var pairList: List<Pair<Int, Int>>? = null
         var graphList: List<Pair<List<Int>, List<String>>>? = null
 
@@ -24,7 +24,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         init {
             val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
             var dirId = 0
-            val pList = mutableListOf<Pair<Int, List<String>>>()
+            val pts = mutableListOf<Pair<Int, PointsToInstance?>>()
             val prList = mutableListOf<Pair<Int, Int>>()
             val gList = mutableListOf<Pair<List<Int>, List<String>>>()
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
@@ -57,7 +57,19 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                         val items = line.split("@@")
                         val id = items[0].toInt() * countDirEntries + dirId
-                        pList.add(id to items)
+                        val pti = when (items[1]) {
+                            "this" -> PointsToInstance.This(items[2])
+                            "local" -> PointsToInstance.LocalVar(items[2], items[6].toInt())
+                            "temp" -> PointsToInstance.Rubbish(id, items[4])
+                            "arg" -> PointsToInstance.Argument(items[2], items[3].toInt())
+                            "return" -> PointsToInstance.ReturnValue(items[2])
+                            "staticcontext" -> PointsToInstance.Rubbish(id, isOkAlways = true)
+                            "staticalloc" -> PointsToInstance.Rubbish(id)
+                            "unknown" -> PointsToInstance.Unknown(items[2], items[3])
+                            "alloc" -> PointsToInstance.Rubbish(id)
+                            else -> null
+                        }
+                        pts.add(id to pti)
                     }
                 }
                 (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
@@ -74,16 +86,16 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 }
                 dirId += 1
             }
-            ptiList = pList
             pairList = prList
             graphList = gList
+            ptis = pts
         }
 
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
             var methodId = 1 /////
-            for ((method, deps) in methodList) {
+            for ((method, depsWithCur) in methodList) {
                 println("$methodId) $method")
-                val (f2f, z2f) = PointsToAdapterSingleton(method, deps).findEdges()
+                val (f2f, z2f) = PointsToAdapterSingleton(method, depsWithCur).findEdges()
                 currentF2fEdges += f2f
                 currentZ2FEdges += z2f
                 methodId += 1 /////
@@ -131,12 +143,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         fun getMethodName(): String
         fun isOkWithMethod(m: String, ms: Set<String>): Boolean = getMethodName() == m
 
-        data class Rubbish(val u: Int, val appropriate: Boolean) : PointsToInstance, AliasBase {
+        data class Rubbish(val u: Int, val methodOrEmpty: String = "", val isOkAlways: Boolean = false) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
                 throw IllegalStateException("must not be Rubbish")
             }
 
-            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = appropriate
+            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = isOkAlways || methodOrEmpty == m
         }
 
         data class This(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
@@ -219,7 +231,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
 
     init {
-        loadPointsToInformation(homeDirectory)
+        loadPointsToInformation()
     }
 
     private fun getAliasId(alias: Alias): Int {
@@ -277,26 +289,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         return varIndToLoadSetOfAliases.mapValues { value -> value.value.cardinality() }
     }
 
-    private fun loadPointsToInformation(homeDirectory: String) {
-        val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
-        var dirId = 0
+    private fun loadPointsToInformation() {
         val loadStoreIncidentVs = BitSet()
-        for ((id, items) in ptiList!!) {
-            val pti = when (items[1]) {
-                "this" -> items[2].let { PointsToInstance.This(it) }
-                "local" -> items[2].let { PointsToInstance.LocalVar(it, items[6].toInt()) }
-                "temp" -> PointsToInstance.Rubbish(id, items[4] == methodName)
-                "arg" -> items[2].let { PointsToInstance.Argument(it, items[3].toInt()) }
-                "return" -> items[2].let { PointsToInstance.ReturnValue(it) }
-                "staticcontext" -> PointsToInstance.Rubbish(id, true)
-                "staticalloc" -> PointsToInstance.Rubbish(id, false)
-                "unknown" -> PointsToInstance.Unknown(items[2], items[3])
-                "alloc" -> PointsToInstance.Rubbish(id, false)
-                else -> null
-            }
+        for ((id, pti) in ptis!!) {
             if (pti == null) {
-                println("Unsupported value of $items")
-            } else if (pti.isOkWithMethod(methodName, deps)) {
+                println("Unsupported value of $id")
+            } else if (pti.isOkWithMethod(methodName, depsWithCur)) {
                 indToEntity[id] = pti
                 entityToInd[pti] = id
                 varToAliasesMap.put(id, BitSet().let { it.set(id); it })
@@ -329,7 +327,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 if (entA != null && entB != null) {
                     loadStoreIncidentVs.set(aInd)
                     loadStoreIncidentVs.set(bInd)
-                    val fInd = vars[3]
+                    val fInd = vars[2]
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
                         storesAndLoads.add(
@@ -345,21 +343,6 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     }
                 }
             }
-        }
-        Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
-            (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
-                val items = line.split("@@")
-
-            }
-            (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
-                val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-
-            }
-            (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
-                val items = line.split(" ", "\t")
-
-            }
-            dirId += 1
         }
         for ((variable, vs) in varToAliasesMap) {
             val aliases = BitSet()
