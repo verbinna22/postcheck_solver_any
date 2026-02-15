@@ -19,6 +19,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         var ptis: List<Pair<Int, PointsToInstance?>>? = null
         var pairList: List<Pair<Int, Int>>? = null
         var graphList: List<Pair<List<Int>, List<String>>>? = null
+        val loadStoreIncidentVs = BitSet()
 
 
         init {
@@ -82,6 +83,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         gList.add(items.take(1).map { it.toInt() * countDirEntries + dirId }.toList() to items)
                     } else if (items[2] == "load_i" || items[2] == "store_i") {
                         gList.add(listOf(items[0], items[1], items[3]).map { it.toInt() * countDirEntries + dirId }.toList() to items)
+                        loadStoreIncidentVs.set(gList.last().first[0])
+                        loadStoreIncidentVs.set(gList.last().first[1])
                     }
                 }
                 dirId += 1
@@ -290,7 +293,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun loadPointsToInformation() {
-        val loadStoreIncidentVs = BitSet()
+
         for ((id, pti) in ptis!!) {
             if (pti == null) {
                 println("Unsupported value of $id")
@@ -325,8 +328,6 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 val entA = indToEntity[aInd]
                 val entB = indToEntity[bInd]
                 if (entA != null && entB != null) {
-                    loadStoreIncidentVs.set(aInd)
-                    loadStoreIncidentVs.set(bInd)
                     val fInd = vars[2]
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
