@@ -2,6 +2,7 @@ package ru.mylogininya
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import java.util.BitSet
+import kotlin.collections.set
 import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
@@ -15,10 +16,17 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         val currentZ2FEdges = mutableSetOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
         private val fIndToAccessor: MutableMap<Int, String> = mutableMapOf()
+        var ptiList: List<Pair<Int, List<String>>>? = null
+        var pairList: List<Pair<Int, Int>>? = null
+        var graphList: List<Pair<List<Int>, List<String>>>? = null
+
 
         init {
             val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
             var dirId = 0
+            val pList = mutableListOf<Pair<Int, List<String>>>()
+            val prList = mutableListOf<Pair<Int, Int>>()
+            val gList = mutableListOf<Pair<List<Int>, List<String>>>()
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
                 (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
                     val (m, ms) = line.split("  ")
@@ -45,8 +53,30 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         fieldName
                     }
                 }
+                Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
+                    (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
+                        val items = line.split("@@")
+                        val id = items[0].toInt() * countDirEntries + dirId
+                        pList.add(id to items)
+                    }
+                }
+                (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
+                    val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
+                    prList.add(var1 to var2)
+                }
+                (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
+                    val items = line.split(" ", "\t")
+                    if (items[2] == "entrypoint") {
+                        gList.add(items.take(1).map { it.toInt() * countDirEntries + dirId }.toList() to items)
+                    } else if (items[2] == "load_i" || items[2] == "store_i") {
+                        gList.add(listOf(items[0], items[1], items[3]).map { it.toInt() * countDirEntries + dirId }.toList() to items)
+                    }
+                }
                 dirId += 1
             }
+            ptiList = pList
+            pairList = prList
+            graphList = gList
         }
 
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
@@ -251,75 +281,83 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
         val loadStoreIncidentVs = BitSet()
+        for ((id, items) in ptiList!!) {
+            val pti = when (items[1]) {
+                "this" -> items[2].let { PointsToInstance.This(it) }
+                "local" -> items[2].let { PointsToInstance.LocalVar(it, items[6].toInt()) }
+                "temp" -> PointsToInstance.Rubbish(id, items[4] == methodName)
+                "arg" -> items[2].let { PointsToInstance.Argument(it, items[3].toInt()) }
+                "return" -> items[2].let { PointsToInstance.ReturnValue(it) }
+                "staticcontext" -> PointsToInstance.Rubbish(id, true)
+                "staticalloc" -> PointsToInstance.Rubbish(id, false)
+                "unknown" -> PointsToInstance.Unknown(items[2], items[3])
+                "alloc" -> PointsToInstance.Rubbish(id, false)
+                else -> null
+            }
+            if (pti == null) {
+                println("Unsupported value of $items")
+            } else if (pti.isOkWithMethod(methodName, deps)) {
+                indToEntity[id] = pti
+                entityToInd[pti] = id
+                varToAliasesMap.put(id, BitSet().let { it.set(id); it })
+            }
+        }
+        for ((var1, var2) in pairList!!) {
+            val ent1 = indToEntity[var1]
+            val ent2 = indToEntity[var2]
+            if (ent1 != null && ent2 != null) {
+                if (ent1 is PointsToInstance.Unknown) {
+                    unknownToIds.getOrPut(ent1.stdLibMethod) { BitSet() }.set(var2)
+                } else {
+                    varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
+                }
+            }
+        }
+        for ((vars, items) in graphList!!) {
+            if (items[2] == "entrypoint") {
+                val var1 = vars[0]
+                if (indToEntity[var1] != null) {
+                    indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
+                    entityToInd[indToEntity[var1]!!] = var1
+                }
+            }
+            if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
+                val aInd = vars[0] // base
+                val bInd = vars[1] //.field
+                val entA = indToEntity[aInd]
+                val entB = indToEntity[bInd]
+                if (entA != null && entB != null) {
+                    loadStoreIncidentVs.set(aInd)
+                    loadStoreIncidentVs.set(bInd)
+                    val fInd = vars[3]
+                    val acc = fIndToAccessor[fInd]!!
+                    if (items[2] == "store_i") {
+                        storesAndLoads.add(
+                            Triple(
+                                aInd,
+                                acc,
+                                bInd
+                            )
+                        ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
+                    } else {
+                        storesAndLoads.add(Triple(bInd, acc, aInd))
+                        loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
+                    }
+                }
+            }
+        }
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "vertex_mappings.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
-                val id = items[0].toInt() * countDirEntries + dirId
-                val pti = when (items[1]) {
-                    "this" -> items[2].let { PointsToInstance.This(it) }
-                    "local" -> items[2].let { PointsToInstance.LocalVar(it, items[6].toInt()) }
-                    "temp" -> PointsToInstance.Rubbish(id, items[4] == methodName)
-                    "arg" -> items[2].let { PointsToInstance.Argument(it, items[3].toInt()) }
-                    "return" -> items[2].let { PointsToInstance.ReturnValue(it) }
-                    "staticcontext" -> PointsToInstance.Rubbish(id, true)
-                    "staticalloc" -> PointsToInstance.Rubbish(id, false)
-                    "unknown" -> PointsToInstance.Unknown(items[2], items[3])
-                    "alloc" -> PointsToInstance.Rubbish(id, false)
-                    else -> null
-                }
-                if (pti == null) {
-                    println("Unsupported value of $items")
-                } else if (pti.isOkWithMethod(methodName, deps)) {
-                    indToEntity[id] = pti
-                    entityToInd[pti] = id
-                    varToAliasesMap.put(id, BitSet().let { it.set(id); it })
-                }
+
             }
             (projectDirectory / "results.txt").bufferedReader().forEachLine { line ->
                 val (var1, var2) = line.split(" ", "\t").map { it.toInt() * countDirEntries + dirId }
-                val ent1 = indToEntity[var1]
-                val ent2 = indToEntity[var2]
-                if (ent1 != null && ent2 != null) {
-                    if (ent1 is PointsToInstance.Unknown) {
-                        unknownToIds.getOrPut(ent1.stdLibMethod) { BitSet() }.set(var2)
-                    } else {
-                        varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
-                    }
-                }
+
             }
             (projectDirectory / "slx_result.txt.g").bufferedReader().forEachLine { line ->
                 val items = line.split(" ", "\t")
-                if (items[2] == "entrypoint") {
-                    val var1 = items[0].toInt() * countDirEntries + dirId
-                    if (indToEntity[var1] != null) {
-                        indToEntity[var1] = toEntryPoint(indToEntity[var1]!!)
-                        entityToInd[indToEntity[var1]!!] = var1
-                    }
-                }
-                if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
-                    val aInd = items[0].toInt() * countDirEntries + dirId // base
-                    val bInd = items[1].toInt() * countDirEntries + dirId //.field
-                    val entA = indToEntity[aInd]
-                    val entB = indToEntity[bInd]
-                    if (entA != null && entB != null) {
-                        loadStoreIncidentVs.set(aInd)
-                        loadStoreIncidentVs.set(bInd)
-                        val fInd = items[3].toInt() * countDirEntries + dirId
-                        val acc = fIndToAccessor[fInd]!!
-                        if (items[2] == "store_i") {
-                            storesAndLoads.add(
-                                Triple(
-                                    aInd,
-                                    acc,
-                                    bInd
-                                )
-                            ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
-                        } else {
-                            storesAndLoads.add(Triple(bInd, acc, aInd))
-                            loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
-                        }
-                    }
-                }
+
             }
             dirId += 1
         }
