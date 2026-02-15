@@ -7,9 +7,9 @@ import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
 
-class PointsToAdapterSingleton private constructor(val methodName: String) {
+class PointsToAdapterSingleton private constructor(val methodName: String, val deps: Set<String>) {
     companion object {
-        val methodList = mutableListOf<String>()
+        val methodList = mutableListOf<Pair<String, Set<String>>>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
         val currentF2fEdges = mutableSetOf<F2FEdge>()
         val currentZ2FEdges = mutableSetOf<Z2FEdge>()
@@ -21,7 +21,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
             var dirId = 0
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
                 (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
-                    methodList.add(line)
+                    val (m, ms) = line.split("  ")
+                    methodList.add(Pair(m, (ms.split(" ") + m).toSet()))
                 }
                 (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                     val items = line.split("@@")
@@ -50,9 +51,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
 
         fun findEdges(): Pair<List<F2FEdge>, List<Z2FEdge>> {
             var methodId = 1 /////
-            for (method in methodList) {
+            for ((method, deps) in methodList) {
                 println("$methodId) $method")
-                val (f2f, z2f) = PointsToAdapterSingleton(method).findEdges()
+                val (f2f, z2f) = PointsToAdapterSingleton(method, deps).findEdges()
                 currentF2fEdges += f2f
                 currentZ2FEdges += z2f
                 methodId += 1 /////
@@ -98,20 +99,20 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
 
     sealed interface PointsToInstance {
         fun getMethodName(): String
-        fun isOkWithMethod(m: String): Boolean = getMethodName() == m
+        fun isOkWithMethod(m: String, ms: Set<String>): Boolean = getMethodName() == m
 
         data class Rubbish(val u: Int, val appropriate: Boolean) : PointsToInstance, AliasBase {
             override fun getMethodName(): String {
                 throw IllegalStateException("must not be Rubbish")
             }
 
-            override fun isOkWithMethod(m: String): Boolean = appropriate
+            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = appropriate
         }
 
         data class This(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "this"
             override fun getMethodName(): String = method
-            override fun isOkWithMethod(m: String): Boolean = true
+            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = ms.contains(method)
         }
         data class LocalVar(val method: String, val index: Int) : PointsToInstance, AliasBase {
             override fun getMethodName(): String = method
@@ -119,12 +120,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
         data class Argument(val method: String, val index: Int, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "arg($index)"
             override fun getMethodName(): String = method
-            override fun isOkWithMethod(m: String): Boolean = true
+            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = ms.contains(method)
         }
         data class ReturnValue(val method: String, val isEntryPoint: Boolean = false) : PointsToInstance, AliasBase {
             override fun toString(): String = "return"
             override fun getMethodName(): String = method
-            override fun isOkWithMethod(m: String): Boolean = true
+            override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = ms.contains(method)
         }
         data class Unknown(val stdLibMethod: String, val method: String) : PointsToInstance, AliasBase {
             override fun getMethodName(): String = method
@@ -268,7 +269,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
                 }
                 if (pti == null) {
                     println("Unsupported value of $items")
-                } else if (pti.isOkWithMethod(methodName)) {
+                } else if (pti.isOkWithMethod(methodName, deps)) {
                     indToEntity[id] = pti
                     entityToInd[pti] = id
                     varToAliasesMap.put(id, BitSet().let { it.set(id); it })
@@ -347,15 +348,23 @@ class PointsToAdapterSingleton private constructor(val methodName: String) {
             if (fromId != toId && aliasIdToVarIds.containsKey(fromId) && aliasIdToVarIds.containsKey(toId)) {
                 for (var1 in aliasIdToVarIds[fromId]!!.stream()) {
                     for (var2 in aliasIdToVarIds[toId]!!.stream()) {
-                        varToAliasesMap[var2]!!.or(varToAliasesMap[var1]!!)
-                        varIndToSetOfAliases[var2]!!.or(varToAliasesMap[var1]!!)
-                        val entity = indToEntity[var2]!!
-                        if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(var2))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
-                            val alias = Alias(entity, listOf())
-                            val aliasId = getAliasId(alias)
-                            varToAliasesMap[var1]!!.set(var2)
-                            aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(var2);
-                            varIndToSetOfAliases[var1]!!.set(aliasId)
+                        val var1AliasesMap: BitSet = varToAliasesMap[var1]!!.clone() as BitSet
+                        val var2AliasesMap = varToAliasesMap[var2]!!.clone() as BitSet
+                        val var1SetOfAliases = varIndToSetOfAliases[var1]!!.clone() as BitSet
+                        val var2SetOfAliases = varIndToSetOfAliases[var2]!!.clone() as BitSet
+                        for (var1AliasObj in var1SetOfAliases.stream()) {
+                            aliasIdToVarIds.getOrPut(var1AliasObj) { BitSet() }.or(var2AliasesMap)
+                        }
+                        for (var2AliasObj in var2SetOfAliases.stream()) {
+                            aliasIdToVarIds.getOrPut(var2AliasObj) { BitSet() }.or(var1AliasesMap)
+                        }
+                        for (var1Alias in var1AliasesMap.stream()) {
+                            varToAliasesMap[var1Alias]!!.or(var2AliasesMap)
+                            varIndToSetOfAliases[var1Alias]!!.or(var2SetOfAliases)
+                        }
+                        for (var2Alias in var2AliasesMap.stream()) {
+                            varToAliasesMap[var2Alias]!!.or(var1AliasesMap)
+                            varIndToSetOfAliases[var2Alias]!!.or(var1SetOfAliases)
                         }
                     }
                 }
