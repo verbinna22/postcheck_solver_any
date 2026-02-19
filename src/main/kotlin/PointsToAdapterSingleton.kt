@@ -6,6 +6,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
+import kotlin.streams.asSequence
 
 class PointsToAdapterSingleton private constructor() {
     companion object {
@@ -221,6 +222,12 @@ class PointsToAdapterSingleton private constructor() {
                 }
     //                if (progressRibs % 10000 == 1) {
                     println("Ribs: $progressRibs Changes: $progressChanges") /////
+                    if (progressChanges > 1000000) {
+                        val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it]!! }.toList()
+                        val bSet = correspondingMap[bInd]!!
+                        val suspectedB = bSet.stream().asSequence().map { aliasIdToAlias[it]!! }.toList()
+                        print("stop") ////
+                    }
                     progressChanges = 0
     //                }
             }
