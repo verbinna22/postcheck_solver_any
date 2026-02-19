@@ -347,12 +347,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val redundantAliases = BitSet()
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
+                if (entity is AliasBase && (isCorrectBase(entity))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(v);
                     aliases.set(aliasId)
-                } else {
+                } else if (!loadStoreIncidentVs.get(v)){
                     redundantAliases.set(v)
                 }
             }
