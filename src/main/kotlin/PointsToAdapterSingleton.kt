@@ -6,6 +6,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
+import kotlin.streams.asSequence
 
 class PointsToAdapterSingleton private constructor() {
     companion object {
@@ -193,9 +194,6 @@ class PointsToAdapterSingleton private constructor() {
             var progressChanges = 0 /////
             for ((aInd, acc, bInd) in graphRibs) {
                 progressRibs += 1 /////
-//                if (progressRibs % 10000 == 1) {
-                    println("Ribs: $progressRibs Changes: $progressChanges") /////
-//                }
                 val aSet = correspondingMap[aInd]!!
                 for (aAliasInd in aSet.stream()) {
                     val aAlias = aliasIdToAlias[aAliasInd]
@@ -208,6 +206,17 @@ class PointsToAdapterSingleton private constructor() {
                         }
                     }
                 }
+//                if (progressRibs % 10000 == 1) {
+                    println("Ribs: $progressRibs Changes: $progressChanges") /////
+
+                if (progressChanges > 9000000) {
+                    val suspected = aSet.stream().asSequence().map { i -> aliasIdToAlias[i] }.toList() ////
+                    val bSynonims = varToAliasesMap[bInd]!!.stream().asSequence().map { i -> indToEntity[i] }.toList() ////
+                    val allOk = varToAliasesMap[bInd]!!.stream().asSequence().filterNot { loadStoreIncidentVs.get(it) || (isCorrectBase(indToEntity[it]!! as AliasBase)) }.toList()
+                    println("stop")//////
+                }
+                progressChanges = 0
+//                }
             }
             val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
             if (indToSetOfAliasesSize == newIndToSetOfAliasesSize) {
@@ -228,10 +237,10 @@ class PointsToAdapterSingleton private constructor() {
         return savedSignature
     }
 
+    val loadStoreIncidentVs = BitSet()
     private fun loadPointsToInformation(homeDirectory: String) = synchronized(this) {
         val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
         var dirId = 0
-        val loadStoreIncidentVs = BitSet()
         Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
             (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                 val items = line.split("@@")
@@ -297,13 +306,13 @@ class PointsToAdapterSingleton private constructor() {
                 if (items.size == 4 && (items[2] == "store_i" || items[2] == "load_i")) { // store
                     val aInd = items[0].toInt() * countDirEntries + dirId // base
                     val bInd = items[1].toInt() * countDirEntries + dirId //.field
-                    loadStoreIncidentVs.set(aInd)
-                    loadStoreIncidentVs.set(bInd)
                     val fInd = items[3].toInt()
                     val acc = fIndToAccessor[fInd]!!
                     if (items[2] == "store_i") {
+                        loadStoreIncidentVs.set(aInd)
                         storesAndLoads.add(Triple(aInd, acc, bInd)) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
                     } else {
+                        loadStoreIncidentVs.set(bInd)
                         storesAndLoads.add(Triple(bInd, acc, aInd))
                         loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
                     }
@@ -318,11 +327,11 @@ class PointsToAdapterSingleton private constructor() {
             val redundantAliases = BitSet()
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) { // all except alloc is /AliasBase/, aliases only for entrypoints or load - store ribs
+                if (entity is AliasBase && (isCorrectBase(entity))) { // all except alloc is /AliasBase/, aliases only for entrypoints or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
-                } else {
+                } else if (!loadStoreIncidentVs.get(v)) {
                     redundantAliases.set(v)
                 }
             }
