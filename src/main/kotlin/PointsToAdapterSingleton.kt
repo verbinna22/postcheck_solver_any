@@ -193,9 +193,6 @@ class PointsToAdapterSingleton private constructor() {
             var progressChanges = 0 /////
             for ((aInd, acc, bInd) in graphRibs) {
                 progressRibs += 1 /////
-//                if (progressRibs % 10000 == 1) {
-                    println("Ribs: $progressRibs Changes: $progressChanges") /////
-//                }
                 val aSet = correspondingMap[aInd]!!
                 if (aSet.get(bInd)) {
                     val orSet = BitSet()
@@ -222,6 +219,10 @@ class PointsToAdapterSingleton private constructor() {
                     }
                     println("Alias progress: $aliasesProgress Pos: $aliasesProgressPos") /////
                 }
+    //                if (progressRibs % 10000 == 1) {
+                    println("Ribs: $progressRibs Changes: $progressChanges") /////
+                    progressChanges = 0
+    //                }
             }
             val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
             if (indToSetOfAliasesSize == newIndToSetOfAliasesSize) {
@@ -340,13 +341,15 @@ class PointsToAdapterSingleton private constructor() {
             varIndToLoadSetOfAliases[variable] = loadAliases
             while (q.isNotEmpty()) {
                 val v = q.removeLast()
-                intAliases.set(v)
                 val entity = indToEntity[v]!!
-                if (entity is AliasBase && (isCorrectBase(entity) || loadStoreIncidentVs.get(v))) {
+                if (entity is AliasBase && (isCorrectBase(entity))) {
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
                     aliases.set(aliasId)
                     loadAliases.set(aliasId)
+                    intAliases.set(v)
+                } else if (loadStoreIncidentVs.get(v)) {
+                    intAliases.set(v)
                 }
                 for (u in varToAlGraphMap[v]!!.stream()) {
                     if (varToAliasesMap[u] == null) {
