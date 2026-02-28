@@ -1,6 +1,7 @@
 package ru.mylogininya
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap
 import java.util.BitSet
 import kotlin.io.path.Path
@@ -236,7 +237,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
 
         fun withNewAccessors(accessorList: List<String>): Alias {
-            if (accessors.size >= 5) {
+            if (accessors.size >= 5 || accessors.isEmpty()) {
                 return this
             }
             return Alias(base, accessors + accessorList.take(5 - accessors.size))
@@ -271,8 +272,10 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private val varToAliasesMap = Int2ObjectOpenHashMap<BitSet>()
     private val indToEntity = Int2ObjectOpenHashMap<PointsToInstance>()
     private val entityToInd = Object2IntOpenHashMap<PointsToInstance>()
-    private val storesAndLoads: MutableList<Triple<Int, String, Int>> = mutableListOf()
-    private val loads: MutableList<Triple<Int, String, Int>> = mutableListOf()
+    // private val storesAndLoads: MutableList<Triple<Int, String, Int>> = mutableListOf()
+    private val storesAndLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
+    // private val loads: MutableList<Triple<Int, String, Int>> = mutableListOf()
+    private val loads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
     private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
@@ -280,62 +283,85 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     //private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
 
     val okVars = BitSet()
-    val multiStoresAndLoads = mutableSetOf<Triple<Int, List<String>, Int>>()
-    val multiLoads = mutableSetOf<Triple<Int, List<String>, Int>>()
+//    val multiStoresAndLoads = mutableSetOf<Triple<Int, List<String>, Int>>()
+    private val multiStoresAndLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<List<String>>>>()
+    val multiLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<List<String>>>>()
     init {
         loadPointsToInformation()
     }
 
-    private fun addAliasesUsingFields(forStores: Boolean) {
-        var indToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
+    private fun addAliasesUsingFieldsOptimized(forStores: Boolean) {
         val correspondingMap = if (forStores) varIndToSetOfAliases else varIndToLoadSetOfAliases
         val multiRibs = if (forStores) multiStoresAndLoads else multiLoads
         val graphRibs = if (forStores) storesAndLoads else loads
-        var wasChanges = true
 
-//        var progressWhile = 0 /////
-        while (wasChanges) {
-//            progressWhile += 1
-//            println("While: $progressWhile") /////
-//            var progressRibs = 0 /////
-//            var progressChanges = 0 /////
-            for ((aInd, acc, bInd) in graphRibs) {
-//                progressRibs += 1 /////
-//                if (progressRibs % 10000 == 1) {
-//                    println("Ribs: $progressRibs Changes: $progressChanges") /////
-//                }
+        val queue = IntArrayList()
+        val inQueue = BitSet()
+        for ((vI, als) in varIndToLoadSetOfAliases) {
+           if (als.cardinality() > 0) {
+               queue.add(vI)
+               inQueue.set(vI)
+           }
+        }
+        while (queue.isNotEmpty()) {
+            val aInd = queue.removeLast()
+            val bInd2Accs = graphRibs[aInd]
+            if (bInd2Accs != null) {
                 val aSet = correspondingMap[aInd]!!
-                for (aAliasInd in aSet.stream()) {
-                    val aAlias = aliasIdToAlias[aAliasInd]
-                    if (isCorrectBase(aAlias.base)) {
-                        val bSynonyms = varToAliasesMap[bInd]!!
-                        for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = correspondingMap[bSynInd]!!
-                            bSynSet.set(getAliasId(aAlias.withNewAccessor(acc)))
-//                            progressChanges += 1 /////
+                val iter = bInd2Accs.int2ObjectEntrySet().fastIterator()
+                while (iter.hasNext()) {
+                    val entry = iter.next()
+                    val bInd = entry.intKey
+                    val accs = entry.value
+                    for (aAliasInd in aSet.stream()) {
+                        val aAlias = aliasIdToAlias[aAliasInd]
+                        if (isCorrectBase(aAlias.base)) {
+                            val bSynonyms = varToAliasesMap[bInd]!!
+                            for (bSynInd in bSynonyms.stream()) {
+                                val bSynSet = correspondingMap[bSynInd]!!
+                                for (acc in accs) {
+                                    val newId = getAliasId(aAlias.withNewAccessor(acc))
+                                    if (!bSynSet.get(newId)) {
+                                        bSynSet.set(newId)
+                                        if (graphRibs.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                            queue.add(bSynInd)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            for ((aInd, acs, bInd) in multiRibs) {
+
+            val bInd2Accss = multiRibs[aInd]
+            if (bInd2Accss != null) {
                 val aSet = correspondingMap[aInd]!!
-                for (aAliasInd in aSet.stream()) {
-                    val aAlias = aliasIdToAlias[aAliasInd]
-                    if (isCorrectBase(aAlias.base)) {
-                        val bSynonyms = varToAliasesMap[bInd]!!
-                        for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = correspondingMap[bSynInd]!!
-                            bSynSet.set(getAliasId(aAlias.withNewAccessors(acs)))
-//                            progressChanges += 1 /////
+                val iter = bInd2Accss.int2ObjectEntrySet().fastIterator()
+                while (iter.hasNext()) {
+                    val entry = iter.next()
+                    val bInd = entry.intKey
+                    val accss = entry.value
+                    for (aAliasInd in aSet.stream()) {
+                        val aAlias = aliasIdToAlias[aAliasInd]
+                        if (isCorrectBase(aAlias.base)) {
+                            val bSynonyms = varToAliasesMap[bInd]!!
+                            for (bSynInd in bSynonyms.stream()) {
+                                val bSynSet = correspondingMap[bSynInd]!!
+                                for (accs in accss) {
+                                    val newId = getAliasId(aAlias.withNewAccessors(accs))
+                                    if (!bSynSet.get(newId)) {
+                                        bSynSet.set(newId)
+                                        if (graphRibs.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                            queue.add(bSynInd)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            val newIndToSetOfAliasesSize = createIndToSetOfAliasesSize(forStores)
-            if (indToSetOfAliasesSize == newIndToSetOfAliasesSize) {
-                wasChanges = false
-            }
-            indToSetOfAliasesSize = newIndToSetOfAliasesSize
         }
     }
 
@@ -394,15 +420,15 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     val varId = currentF2fEdgesMapIdsFromVar[ribN]
                     val fInd = entityToInd.getInt(alF.base)
                     val tInd = entityToInd.getInt(alT.base)
-                    multiLoads.add(Triple(fInd, alF.accessors, varId))
-                    multiStoresAndLoads.add(Triple(fInd, alF.accessors, varId))
-                    multiStoresAndLoads.add(Triple(tInd, alT.accessors, varId))
+                    multiLoads.getOrPut(fInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }.add(alF.accessors)
+                    multiStoresAndLoads.getOrPut(fInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }.add(alF.accessors)
+                    multiStoresAndLoads.getOrPut(varId) { Int2ObjectOpenHashMap() }.getOrPut(tInd) { mutableSetOf() }.add(alF.accessors)
                 }
             }
         }
         for (zr in currentZ2FEdges) {
             if (depsWithCur.contains((zr.to.base as PointsToInstance).getMethodName())) {
-                multiStoresAndLoads.add(Triple(entityToInd.getInt(zr.to), zr.to.accessors, zr.indT))
+                multiStoresAndLoads.getOrPut(entityToInd.getInt(zr.to)) { Int2ObjectOpenHashMap() }.getOrPut(zr.indT) { mutableSetOf() }.add(zr.to.accessors)
                 unknownToIds.getOrPut(zr.msg) { BitSet() }.set(zr.indT)
             }
         }
@@ -454,16 +480,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 val fInd = vars[2]
                 val acc = fIndToAccessor[fInd]!!
                 if (items[2] == "store_i") {
-                    storesAndLoads.add(
-                        Triple(
-                            aInd,
-                            acc,
-                            bInd
-                        )
-                    ) // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
+                    storesAndLoads.getOrPut(aInd) { Int2ObjectOpenHashMap() }.getOrPut(bInd) { mutableSetOf() }.add(acc)
+                    // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
                 } else {
-                    storesAndLoads.add(Triple(bInd, acc, aInd))
-                    loads.add(Triple(bInd, acc, aInd)) // c -> a.b | a, b, c
+                    storesAndLoads.getOrPut(bInd) { Int2ObjectOpenHashMap() }.getOrPut(aInd) { mutableSetOf() }.add(acc)
+                    loads.getOrPut(bInd) { Int2ObjectOpenHashMap() }.getOrPut(aInd) { mutableSetOf() }.add(acc)
+                    // c -> a.b | a, b, c
                 }
             }
         }
@@ -491,7 +513,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun load4() {
-        addAliasesUsingFields(false)
+        addAliasesUsingFieldsOptimized(false)
     }
 
 //    private fun loadF2FEdges() {
@@ -535,7 +557,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //    }
 
     private fun load6() {
-        addAliasesUsingFields(true)
+        addAliasesUsingFieldsOptimized(true)
     }
 
     private fun loadPointsToInformation() {
