@@ -147,7 +147,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
 
             currentF2fEdges.addAll(defaultEdges)
-            return currentF2fEdges.filter {
+            val fs = currentF2fEdges.filter {
                 val from = it.from.base
                 when (from) {
                     is PointsToInstance.Argument -> from.isEntryPoint
@@ -155,16 +155,17 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     is PointsToInstance.This -> from.isEntryPoint
                     else -> throw IllegalArgumentException("Unsupported alias base")
                 }
-            }.toList() to
-                    currentZ2FEdges.filter {
-                        val to = it.to.base
-                        when (to) {
-                            is PointsToInstance.Argument -> to.isEntryPoint
-                            is PointsToInstance.ReturnValue -> to.isEntryPoint
-                            is PointsToInstance.This -> to.isEntryPoint
-                            else -> throw IllegalArgumentException("Unsupported alias base")
-                        }
-                    }.toList()
+            }.toList()
+            val zs = currentZ2FEdges.filter {
+                val to = it.to.base
+                when (to) {
+                    is PointsToInstance.Argument -> to.isEntryPoint
+                    is PointsToInstance.ReturnValue -> to.isEntryPoint
+                    is PointsToInstance.This -> to.isEntryPoint
+                    else -> throw IllegalArgumentException("Unsupported alias base")
+                }
+            }.toList()
+            return fs to zs
         }
     }
 
