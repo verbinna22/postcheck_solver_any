@@ -279,7 +279,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
 
-    private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
+    //private val aliasIdToVarIds: MutableMap<Int, BitSet> = mutableMapOf()
 
     val okVars = BitSet()
     val multiStoresAndLoads = mutableSetOf<Triple<Int, List<String>, Int>>()
@@ -359,11 +359,11 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 }
             }
         }
-//        for (zr in currentZ2FEdges) {
-//            if ((zr.to.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
-//                okVars.set(zr.indT)
-//            }
-//        }
+        for (zr in currentZ2FEdges) {
+            if ((zr.to.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
+                okVars.set(zr.indT)
+            }
+        }
 
         fun watch(pti: PointsToInstance, id: Int) {
             var ptiUpd = pti
@@ -398,8 +398,14 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     val tInd = entityToInd.getInt(alT.base)
                     multiLoads.add(Triple(fInd, alF.accessors, varId))
                     multiStoresAndLoads.add(Triple(fInd, alF.accessors, varId))
-                    multiStoresAndLoads.add(Triple(varId, alT.accessors, tInd))
+                    multiStoresAndLoads.add(Triple(tInd, alT.accessors, varId))
                 }
+            }
+        }
+        for (zr in currentZ2FEdges) {
+            if ((zr.to.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
+                multiStoresAndLoads.add(Triple(aliasToId.getInt(zr.to), zr.to.accessors, zr.indT))
+                unknownToIds.getOrPut(zr.msg) { BitSet() }.set(zr.indT)
             }
         }
     }
@@ -475,7 +481,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 if (entity is AliasBase && (isCorrectBase(entity))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
                     val alias = Alias(entity, listOf())
                     val aliasId = getAliasId(alias)
-                    aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(v);
+                    //aliasIdToVarIds.getOrPut(aliasId) { BitSet() }.set(v);
                     aliases.set(aliasId)
                 } else if (!loadStoreIncidentVs.get(v)){
                     redundantAliases.set(v)
