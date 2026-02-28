@@ -189,9 +189,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         fun isOkWithMethod(m: String, ms: Set<String>): Boolean = getMethodName() == m
 
         data class Rubbish(val u: Int, val methodOrEmpty: String = "", val isOkAlways: Boolean = false) : PointsToInstance, AliasBase {
-            override fun getMethodName(): String {
-                throw IllegalStateException("must not be Rubbish")
-            }
+            override fun getMethodName(): String = methodOrEmpty
 
             override fun isOkWithMethod(m: String, ms: Set<String>): Boolean = isOkAlways || methodOrEmpty == m
         }
@@ -354,13 +352,13 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val alTId = currentF2fEdgesMapIdsTo[ribN]
             if (alFId != alTId) {
                 val alF = aliasIdToAlias[alFId]
-                if ((alF.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
+                if (depsWithCur.contains((alF.base as PointsToInstance).getMethodName())) {
                     okVars.set(currentF2fEdgesMapIdsFromVar[ribN])
                 }
             }
         }
         for (zr in currentZ2FEdges) {
-            if ((zr.to.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
+            if (depsWithCur.contains((zr.to.base as PointsToInstance).getMethodName())) {
                 okVars.set(zr.indT)
             }
         }
@@ -392,7 +390,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             if (alFId != alTId) {
                 val alF = aliasIdToAlias[alFId]
                 val alT = aliasIdToAlias[alTId]
-                if ((alF.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
+                if (depsWithCur.contains((alF.base as PointsToInstance).getMethodName())) {
                     val varId = currentF2fEdgesMapIdsFromVar[ribN]
                     val fInd = entityToInd.getInt(alF.base)
                     val tInd = entityToInd.getInt(alT.base)
@@ -403,8 +401,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
         }
         for (zr in currentZ2FEdges) {
-            if ((zr.to.base as PointsToInstance).isOkWithMethod(methodName, depsWithCur)) {
-                multiStoresAndLoads.add(Triple(aliasToId.getInt(zr.to), zr.to.accessors, zr.indT))
+            if (depsWithCur.contains((zr.to.base as PointsToInstance).getMethodName())) {
+                multiStoresAndLoads.add(Triple(entityToInd.getInt(zr.to), zr.to.accessors, zr.indT))
                 unknownToIds.getOrPut(zr.msg) { BitSet() }.set(zr.indT)
             }
         }
