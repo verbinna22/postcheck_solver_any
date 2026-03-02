@@ -238,7 +238,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
 
         fun withNewAccessors(accessorList: List<String>): Alias {
-            if (accessors.size >= 5 || accessors.isEmpty()) {
+            if (accessors.size >= 5 || accessorList.isEmpty()) {
                 return this
             }
             return Alias(base, accessors + accessorList.take(5 - accessors.size))
