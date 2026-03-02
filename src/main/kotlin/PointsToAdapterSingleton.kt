@@ -634,27 +634,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     fun findEdges(f2fs: Int2ObjectOpenHashMap<BitSet>, z2fs: MutableSet<Z2FEdge>) {
         findEdges0()
         findEdges1(z2fs)
-//        findEdges2(z2fs)
     }
-
-//    private fun findEdges2(z2fs: MutableSet<Z2FEdge>) {
-//        for ((method, al) in currentZ2FEdges.toList()) {
-//            val alId = getAliasId(al)
-//            if (aliasIdToVarIds.containsKey(alId)) {
-//                for (id in aliasIdToVarIds[alId]!!.stream()) {
-//                    val aliases = varIndToSetOfAliases[id]
-//                    if (aliases != null) {
-//                        for (toAliasId in aliases.stream()) {
-//                            val toAlias = aliasIdToAlias[toAliasId]
-//                            if (isCorrectBase(toAlias.base)) {
-//                                z2fs.add(Z2FEdge(method, toAlias))
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
 
     private fun findEdges1(z2fs: MutableSet<Z2FEdge>) {
         for ((method, ids) in unknownToIds) {
@@ -673,28 +653,85 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun findEdges0() {
-        for ((varInd, aliases) in varIndToSetOfAliases) {
-            val fromAliases = varIndToLoadSetOfAliases[varInd]!!
-            for (fromAliasId in fromAliases.stream()) {
-                val fromAlias = aliasIdToAlias[fromAliasId]
-                if (isCorrectStartBase(fromAlias.base)) {
-                    var fromSet = currentF2fEdgesMap.get(fromAliasId)
-                    if (fromSet == null) {
-                        fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+        val iter = storesAndLoads.int2ObjectEntrySet().fastIterator()
+        while (iter.hasNext()) {
+            val entry = iter.next()
+            val var1 = entry.intKey
+            val var2ToFields = entry.value
+            val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
+            while (subIter.hasNext()) {
+                val subEntry = subIter.next()
+                val var2 = subEntry.intKey
+                val fields = subEntry.value
+                for (field in fields) {
+                    val fromAliases = varIndToSetOfAliases[var2]!!
+                    val toPredAliases = varIndToSetOfAliases[var1]!!
+                    toPredAliases.forEach { toPredAliasId ->
+                        val toPredAlias = aliasIdToAlias[toPredAliasId]
+                        val toAlias = toPredAlias.withNewAccessor(field)
+                        val toAliasId = getAliasId(toAlias)
+                        fromAliases.forEach { fromAliasId ->
+                            if (toAliasId != fromAliasId) {
+                                val fromAlias = aliasIdToAlias[fromAliasId]
+                                var fromSet = currentF2fEdgesMap.get(fromAliasId)
+                                if (fromSet == null) {
+                                    fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+                                }
+                                if (isCorrectBase(toAlias.base)
+                                    && toAlias.base.getMethodName() == methodName
+                                    && fromAlias.base.getMethodName() == methodName
+                                ) {
+                                    if (!fromSet.get(toAliasId)) {
+                                        currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
+                                        currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = toAliasId
+                                        currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = var2
+                                        fromSet.set(toAliasId)
+                                        currentF2fEdgesMapNum++
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+            }
+        }
 
-                    for (toAliasId in aliases.stream()) {
-                        val toAlias = aliasIdToAlias[toAliasId]
-                        if (isCorrectBase(toAlias.base)
-                            && toAlias.base.getMethodName() == methodName
-                            && fromAlias.base.getMethodName() == methodName
-                        ) {
-                            if (!fromSet.get(toAliasId)) {
-                                currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
-                                currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = toAliasId
-                                currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = varInd
-                                fromSet.set(toAliasId)
-                                currentF2fEdgesMapNum++
+        val iterN = multiStoresAndLoads.int2ObjectEntrySet().fastIterator()
+        while (iterN.hasNext()) {
+            val entry = iterN.next()
+            val var1 = entry.intKey
+            val var2ToFields = entry.value
+            val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
+            while (subIter.hasNext()) {
+                val subEntry = subIter.next()
+                val var2 = subEntry.intKey
+                val fields = subEntry.value
+                for (fieldChain in fields) {
+                    val fromAliases = varIndToSetOfAliases[var2]!!
+                    val toPredAliases = varIndToSetOfAliases[var1]!!
+                    toPredAliases.forEach { toPredAliasId ->
+                        val toPredAlias = aliasIdToAlias[toPredAliasId]
+                        val toAlias = toPredAlias.withNewAccessors(fieldChain)
+                        val toAliasId = getAliasId(toAlias)
+                        fromAliases.forEach { fromAliasId ->
+                            if (toAliasId != fromAliasId) {
+                                val fromAlias = aliasIdToAlias[fromAliasId]
+                                var fromSet = currentF2fEdgesMap.get(fromAliasId)
+                                if (fromSet == null) {
+                                    fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+                                }
+                                if (isCorrectBase(toAlias.base)
+                                    && toAlias.base.getMethodName() == methodName
+                                    && fromAlias.base.getMethodName() == methodName
+                                ) {
+                                    if (!fromSet.get(toAliasId)) {
+                                        currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
+                                        currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = toAliasId
+                                        currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = var2
+                                        fromSet.set(toAliasId)
+                                        currentF2fEdgesMapNum++
+                                    }
+                                }
                             }
                         }
                     }
