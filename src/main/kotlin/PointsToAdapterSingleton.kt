@@ -270,7 +270,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
     }
 
-    private val varToAliasesMap = Int2ObjectOpenHashMap<BitSet>()
+    private val varToAliasesVarsMap = Int2ObjectOpenHashMap<BitSet>()
     private val indToEntity = Int2ObjectOpenHashMap<PointsToInstance>()
     private val entityToInd = Object2IntOpenHashMap<PointsToInstance>()
 
@@ -319,7 +319,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     for (aAliasInd in aSet.stream()) {
                         val aAlias = aliasIdToAlias[aAliasInd]
                         if (isCorrectBase(aAlias.base)) {
-                            val bSynonyms = varToAliasesMap[bInd]!!
+                            val bSynonyms = varToAliasesVarsMap[bInd]!!
                             for (bSynInd in bSynonyms.stream()) {
                                 val bSynSet = correspondingMap[bSynInd]!!
                                 for (acc in accs) {
@@ -348,7 +348,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     for (aAliasInd in aSet.stream()) {
                         val aAlias = aliasIdToAlias[aAliasInd]
                         if (isCorrectBase(aAlias.base)) {
-                            val bSynonyms = varToAliasesMap[bInd]!!
+                            val bSynonyms = varToAliasesVarsMap[bInd]!!
                             for (bSynInd in bSynonyms.stream()) {
                                 val bSynSet = correspondingMap[bSynInd]!!
                                 for (accs in accss) {
@@ -392,7 +392,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
             indToEntity[id] = ptiUpd
             entityToInd[ptiUpd] = id
-            varToAliasesMap.put(id, BitSet().let { it.set(id); it })
+            varToAliasesVarsMap.put(id, BitSet().let { it.set(id); it })
         }
 
         for ((id, pti) in ptis!!) {
@@ -448,7 +448,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 if (ent1 is PointsToInstance.Unknown) {
                     unknownToIds.getOrPut(ent1.stdLibMethod) { BitSet() }.set(var2)
                 } else {
-                    varToAliasesMap[var1]!!.set(var2) // reversed combination must be in file
+                    varToAliasesVarsMap[var1]!!.set(var2) // reversed combination must be in file
                 }
             }
 
@@ -477,7 +477,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun load3() {
-        for ((variable, vs) in varToAliasesMap) {
+        for ((variable, vs) in varToAliasesVarsMap) {
             val aliases = BitSet()
             varIndToSetOfAliases[variable] = aliases
             val redundantAliases = BitSet()
@@ -613,7 +613,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                                 if (fromSet == null) {
                                     fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
                                 }
-                                if (isCorrectBase(toAlias.base)
+                                if (isCorrectStartBase(fromAlias.base) && isCorrectBase(toAlias.base)
                                     && toAlias.base.getMethodName() == methodName
                                     && fromAlias.base.getMethodName() == methodName
                                 ) {
@@ -639,6 +639,33 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
         findEdgesUsingList(multiStores) { fields ->
             this.withNewAccessors(fields)
+        }
+
+        var rv = PointsToInstance.ReturnValue(methodName)
+        val rvInd = entityToInd.getOrDefault(rv, -1)
+        if (rvInd != -1) {
+            rv = indToEntity[rvInd]!! as PointsToInstance.ReturnValue
+            val rvAlias = Alias(rv, listOf())
+            val rvAliasId = getAliasId(rvAlias)
+            val aliases = varIndToSetOfAliases[rvInd]
+            if (aliases != null) {
+                for (fromAliasId in aliases.stream()) {
+                    var fromSet = currentF2fEdgesMap.get(fromAliasId)
+                    val fromAlias = aliasIdToAlias[fromAliasId]
+                    if (fromSet == null) {
+                        fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+                    }
+                    if (isCorrectStartBase(fromAlias.base) && fromAlias.base.getMethodName() == methodName) {
+                        if (!fromSet.get(fromAliasId)) {
+                            currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
+                            currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = rvAliasId
+                            currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = rvInd
+                            fromSet.set(rvAliasId)
+                            currentF2fEdgesMapNum++
+                        }
+                    }
+                }
+            }
         }
     }
 }
