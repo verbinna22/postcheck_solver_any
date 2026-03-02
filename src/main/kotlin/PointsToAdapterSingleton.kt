@@ -417,8 +417,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     val fInd = entityToInd.getInt(alF.base)
                     val tInd = entityToInd.getInt(alT.base)
                     multiStoresAndLoads.getOrPut(fInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }.add(alF.accessors)
-                    multiStoresAndLoads.getOrPut(varId) { Int2ObjectOpenHashMap() }.getOrPut(tInd) { mutableSetOf() }.add(alF.accessors)
-                    multiStores.getOrPut(varId) { Int2ObjectOpenHashMap() }.getOrPut(tInd) { mutableSetOf() }.add(alF.accessors)
+                    multiStoresAndLoads.getOrPut(tInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }.add(alT.accessors)
+                    multiStores.getOrPut(tInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }.add(alT.accessors)
                 }
             }
         }
