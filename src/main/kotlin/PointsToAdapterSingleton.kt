@@ -52,8 +52,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val gList = mutableListOf<Pair<List<Int>, List<String>>>()
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
                 (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
-                    val (m, ms) = line.split("  ")
-                    methodList.add(Pair(m, (ms.split(" ") + m).toSet()))
+                    val (m, ms) = line.split("@@@")
+                    methodList.add(Pair(m, (ms.split("@@") + m).toSet()))
                 }
                 (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                     val items = line.split("@@")
@@ -181,9 +181,15 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             if (name.contains("<")) {
                 throw IllegalStateException("must not contain <")
             }
-            val (mName, args) = name.split(")", limit = 2)[1].split("(", limit = 2)
-            val methodName = "$mName(${args.replace("$", ".")}"
-            return methodName.replace("#", "::").replace(", ", ",")
+            if (name.contains("(id:")) {
+                throw IllegalStateException("must not contain id")
+            }
+            if (name.contains(", ")) {
+                throw IllegalStateException("must not contain ,wsp")
+            }
+            //val (mName, args) = name.split("(", limit = 2)
+            val methodName = name.replace("$", ".")
+            return methodName.replace("#", "::")
         }
     }
 

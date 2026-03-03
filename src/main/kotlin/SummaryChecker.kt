@@ -238,6 +238,9 @@ object SummaryChecker {
 //            if (method.className == "org.apache.logging.log4j.message.ObjectMessage") {
 //                println("")
 //            } ///
+            if (method.toString().contains("$")) {
+                throw IllegalStateException("$method")
+            }
             val markedRibs = markedEdges.filter { it.to.base.getMethodUnifiedName() == method.toString() }
             val ribsList = edges.filter { it.to.base.getMethodUnifiedName() == method.toString() }
             for (call in calls) {
