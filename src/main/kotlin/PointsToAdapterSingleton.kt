@@ -12,7 +12,7 @@ import kotlin.streams.asSequence
 
 class PointsToAdapterSingleton private constructor(val methodName: String, val depsWithCur: Set<String>) {
     companion object {
-        val MAX_ACCESSORS: Int = 5
+        val MAX_ACCESSORS: Int = 5 //5
         private val aliasIdToAlias = mutableListOf<Alias>()
         private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap<Alias>().also {
             it.defaultReturnValue(-1)
@@ -287,7 +287,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
     private val varToAliasesVarsMap = Int2ObjectOpenHashMap<BitSet>()
     private val indToEntity = Int2ObjectOpenHashMap<PointsToInstance>()
-    private val entityToInd = Object2IntOpenHashMap<PointsToInstance>()
+    private val entityToInd = Object2IntOpenHashMap<PointsToInstance>().also {
+        it.defaultReturnValue(-1)
+    }
 
     private val storesAndLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
     private val stores = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
@@ -313,8 +315,21 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         val correspondingMap = varIndToSetOfAliases
         val multiRibs = multiStoresAndLoads
         val graphRibs = storesAndLoads
-        println("Summary ribs: ${multiStoresAndLoads.size} Graph: ${graphRibs.size}") ////
+        println("Summary ribs: ${multiStoresAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()} Graph: ${graphRibs.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()}") ////
         if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
+
+            val sms = multiStoresAndLoads.flatMap { a ->
+                a.value.flatMap { b->
+                    b.value.map { str ->
+                        Triple(indToEntity[a.key], indToEntity[b.key], str)
+                    }
+                }
+            }.toList()
+            val ss = currentF2fEdgesMap.flatMap { f ->
+                f.value.stream().asSequence().map { t ->
+                    Pair(aliasIdToAlias[f.key], aliasIdToAlias[t])
+                }
+            }.toList()
             print("OK")
         } ////
 
@@ -327,9 +342,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
         }
         while (queue.isNotEmpty()) {
-            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
-                println("q sz: ${queue.size}") ////
-            }
+//            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
+//                println("q sz: ${queue.size}") ////
+//            }
             val aInd = queue.removeLast()
             inQueue.clear(aInd)
             val aSet = correspondingMap[aInd]!!.clone() as BitSet
@@ -367,10 +382,10 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
             val bInd2Accss = multiRibs[aInd]
             if (bInd2Accss != null) {
-                if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
-                    val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it] }.toList()
-                    println("aSyns sz: ${aSet.cardinality()}") ////
-                }
+//                if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
+//                    val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it] }.toList()
+//                    println("aSyns sz: ${aSet.cardinality()}") ////
+//                }
                 val iter = bInd2Accss.int2ObjectEntrySet().fastIterator()
                 while (iter.hasNext()) {
                     val entry = iter.next()
