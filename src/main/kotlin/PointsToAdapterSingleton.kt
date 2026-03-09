@@ -312,10 +312,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun addAliasesUsingFields() {
-        val correspondingMap = varIndToSetOfAliases
-        val multiRibs = multiStoresAndLoads
-        val graphRibs = storesAndLoads
-        println("Summary ribs: ${multiStoresAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()} Graph: ${graphRibs.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()}") ////
+        println("Summary ribs: ${multiStoresAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()} Graph: ${storesAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()}") ////
 //        if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
 //
 //            val sms = multiStoresAndLoads.flatMap { a ->
@@ -335,7 +332,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
         val queue = IntArrayList()
         val inQueue = BitSet()
-        for ((vI, als) in correspondingMap) {
+        for ((vI, als) in varIndToSetOfAliases) {
             if (als.cardinality() > 0) {
                 queue.add(vI)
                 inQueue.set(vI)
@@ -347,8 +344,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //            }
             val aInd = queue.removeLast()
             inQueue.clear(aInd)
-            val aSet = correspondingMap[aInd]!!.clone() as BitSet
-            val bInd2Accs = graphRibs[aInd]
+            val aSet = varIndToSetOfAliases[aInd]!!.clone() as BitSet
+
+            val bInd2Accs = storesAndLoads[aInd]
             if (bInd2Accs != null) {
                 val iter = bInd2Accs.int2ObjectEntrySet().fastIterator()
                 while (iter.hasNext()) {
@@ -359,12 +357,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         val aAlias = aliasIdToAlias[aAliasInd]
                         val bSynonyms = varToAliasesVarsMap[bInd]!!
                         for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = correspondingMap[bSynInd]!!
+                            val bSynSet = varIndToSetOfAliases[bSynInd]!!
                             for (acc in accs) {
                                 val newId = getAliasId(aAlias.withNewAccessor(acc))
                                 if (!bSynSet.get(newId)) {
                                     bSynSet.set(newId)
-                                    if (graphRibs.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                    if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
                                         queue.add(bSynInd)
                                         inQueue.set(bSynInd)
 //                                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.Object,java.lang.Throwable)") {
@@ -378,7 +376,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 }
             }
 
-            val bInd2Accss = multiRibs[aInd]
+            val bInd2Accss = multiStoresAndLoads[aInd]
             if (bInd2Accss != null) {
 //                if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
 //                    val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it] }.toList()
@@ -396,12 +394,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //                                println("bSyns sz: ${bSynonyms.cardinality()}") ////
 //                            }
                         for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = correspondingMap[bSynInd]!!
+                            val bSynSet = varIndToSetOfAliases[bSynInd]!!
                             for (accs in accss) {
                                 val newId = getAliasId(aAlias.withNewAccessors(accs))
                                 if (!bSynSet.get(newId)) {
                                     bSynSet.set(newId)
-                                    if (graphRibs.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                    if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
                                         queue.add(bSynInd)
                                         inQueue.set(bSynInd)
                                     }
