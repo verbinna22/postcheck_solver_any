@@ -345,64 +345,80 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val aInd = queue.removeLast()
             inQueue.clear(aInd)
             val aSet = varIndToSetOfAliases[aInd]!!.clone() as BitSet
+            processGraphRibs(aInd, aSet, inQueue, queue)
+            processSummaryRibs(aInd, aSet, inQueue, queue)
+        }
+    }
 
-            val bInd2Accs = storesAndLoads[aInd]
-            if (bInd2Accs != null) {
-                val iter = bInd2Accs.int2ObjectEntrySet().fastIterator()
-                while (iter.hasNext()) {
-                    val entry = iter.next()
-                    val bInd = entry.intKey
-                    val accs = entry.value
-                    for (aAliasInd in aSet.stream()) {
-                        val aAlias = aliasIdToAlias[aAliasInd]
-                        val bSynonyms = varToAliasesVarsMap[bInd]!!
-                        for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = varIndToSetOfAliases[bSynInd]!!
-                            for (acc in accs) {
-                                val newId = getAliasId(aAlias.withNewAccessor(acc))
-                                if (!bSynSet.get(newId)) {
-                                    bSynSet.set(newId)
-                                    if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
-                                        queue.add(bSynInd)
-                                        inQueue.set(bSynInd)
-//                                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.Object,java.lang.Throwable)") {
-//                                                println("bSyns1 sz: ${bSynSet.cardinality()}") ////
-//                                            }
-                                    }
+    private fun processSummaryRibs(
+        aInd: Int,
+        aSet: BitSet,
+        inQueue: BitSet,
+        queue: IntArrayList
+    ) {
+        val bInd2Accss = multiStoresAndLoads[aInd]
+        if (bInd2Accss != null) {
+    //                if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
+    //                    val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it] }.toList()
+    //                    println("aSyns sz: ${aSet.cardinality()}") ////
+    //                }
+            val iter = bInd2Accss.int2ObjectEntrySet().fastIterator()
+            while (iter.hasNext()) {
+                val entry = iter.next()
+                val bInd = entry.intKey
+                val accss = entry.value
+                for (aAliasInd in aSet.stream()) {
+                    val aAlias = aliasIdToAlias[aAliasInd]
+                    val bSynonyms = varToAliasesVarsMap[bInd]!!
+    //                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
+    //                                println("bSyns sz: ${bSynonyms.cardinality()}") ////
+    //                            }
+                    for (bSynInd in bSynonyms.stream()) {
+                        val bSynSet = varIndToSetOfAliases[bSynInd]!!
+                        for (accs in accss) {
+                            val newId = getAliasId(aAlias.withNewAccessors(accs))
+                            if (!bSynSet.get(newId)) {
+                                bSynSet.set(newId)
+                                if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                    queue.add(bSynInd)
+                                    inQueue.set(bSynInd)
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
 
-            val bInd2Accss = multiStoresAndLoads[aInd]
-            if (bInd2Accss != null) {
-//                if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
-//                    val suspected = aSet.stream().asSequence().map { aliasIdToAlias[it] }.toList()
-//                    println("aSyns sz: ${aSet.cardinality()}") ////
-//                }
-                val iter = bInd2Accss.int2ObjectEntrySet().fastIterator()
-                while (iter.hasNext()) {
-                    val entry = iter.next()
-                    val bInd = entry.intKey
-                    val accss = entry.value
-                    for (aAliasInd in aSet.stream()) {
-                        val aAlias = aliasIdToAlias[aAliasInd]
-                        val bSynonyms = varToAliasesVarsMap[bInd]!!
-//                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
-//                                println("bSyns sz: ${bSynonyms.cardinality()}") ////
-//                            }
-                        for (bSynInd in bSynonyms.stream()) {
-                            val bSynSet = varIndToSetOfAliases[bSynInd]!!
-                            for (accs in accss) {
-                                val newId = getAliasId(aAlias.withNewAccessors(accs))
-                                if (!bSynSet.get(newId)) {
-                                    bSynSet.set(newId)
-                                    if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
-                                        queue.add(bSynInd)
-                                        inQueue.set(bSynInd)
-                                    }
+    private fun processGraphRibs(
+        aInd: Int,
+        aSet: BitSet,
+        inQueue: BitSet,
+        queue: IntArrayList
+    ) {
+        val bInd2Accs = storesAndLoads[aInd]
+        if (bInd2Accs != null) {
+            val iter = bInd2Accs.int2ObjectEntrySet().fastIterator()
+            while (iter.hasNext()) {
+                val entry = iter.next()
+                val bInd = entry.intKey
+                val accs = entry.value
+                for (aAliasInd in aSet.stream()) {
+                    val aAlias = aliasIdToAlias[aAliasInd]
+                    val bSynonyms = varToAliasesVarsMap[bInd]!!
+                    for (bSynInd in bSynonyms.stream()) {
+                        val bSynSet = varIndToSetOfAliases[bSynInd]!!
+                        for (acc in accs) {
+                            val newId = getAliasId(aAlias.withNewAccessor(acc))
+                            if (!bSynSet.get(newId)) {
+                                bSynSet.set(newId)
+                                if (storesAndLoads.contains(bSynInd) && !inQueue.get(bSynInd)) {
+                                    queue.add(bSynInd)
+                                    inQueue.set(bSynInd)
+    //                                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.Object,java.lang.Throwable)") {
+    //                                                println("bSyns1 sz: ${bSynSet.cardinality()}") ////
+    //                                            }
                                 }
                             }
                         }
