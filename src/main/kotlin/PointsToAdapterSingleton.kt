@@ -189,8 +189,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             if (name.contains(", ")) {
                 throw IllegalStateException("must not contain ,wsp")
             }
-            //val (mName, args) = name.split("(", limit = 2)
-            val methodName = name.replace("$", ".")
+            val (mName, args) = name.split("(", limit = 2)
+            val methodName = "$mName(${args.replace("$", ".")}"
             return methodName.replace("#", "::")
         }
     }
