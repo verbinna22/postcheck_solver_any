@@ -712,7 +712,11 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
 
         var rv = PointsToInstance.ReturnValue(methodName)
-        val rvInd = entityToInd.getOrDefault(rv, -1)
+        var rvInd = entityToInd.getOrDefault(rv, -1)
+        if (rvInd == -1) {
+            rv = PointsToInstance.ReturnValue(methodName, isEntryPoint = true)
+            rvInd = entityToInd.getOrDefault(rv, -1)
+        }
         if (rvInd != -1) {
             rv = indToEntity[rvInd]!! as PointsToInstance.ReturnValue
             val rvAlias = Alias(rv, listOf())
