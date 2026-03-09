@@ -295,7 +295,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private val stores = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
 
     //private val loads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
-    private val varIndToSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
+    private val varIndToSetOfAliases = Int2ObjectOpenHashMap<BitSet>()
 
     //private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
@@ -371,7 +371,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 val entry = iter.next()
                 val bInd = entry.intKey
                 val accss = entry.value
-                for (aAliasInd in aSet.stream()) {
+                aSet.forEach { aAliasInd ->
                     val aAlias = aliasIdToAlias[aAliasInd]
                     val bSynonyms = varToAliasesVarsMap[bInd]!!
                     //                            if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
