@@ -55,7 +55,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
                 (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
                     val (m, ms) = line.split("@@@")
-                    methodList.add(Pair(m, (ms.split("@@") + m).toSet()))
+                    val deps = if (ms.isEmpty()) listOf() else ms.split("@@")
+                    methodList.add(Pair(m, (deps + m).toSet()))
                 }
                 (projectDirectory / "description.txt").bufferedReader().forEachLine { line ->
                     val items = line.split("@@")
@@ -645,11 +646,13 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private fun findEdges1(z2fs: MutableSet<Z2FEdge>) {
         for ((method, ids) in unknownToIds) {
             for (id in ids.stream()) {
-                val aliases = varIndToSetOfAliases[id]
-                if (aliases != null) {
-                    for (toAliasId in aliases.stream()) {
-                        val toAlias = aliasIdToAlias[toAliasId]
-                        z2fs.add(Z2FEdge(method, toAlias, id))
+                for (aid in varToAliasesVarsMap[id].stream()) {
+                    val aliases = varIndToSetOfAliases[aid]
+                    if (aliases != null) {
+                        for (toAliasId in aliases.stream()) {
+                            val toAlias = aliasIdToAlias[toAliasId]
+                            z2fs.add(Z2FEdge(method, toAlias, aid))
+                        }
                     }
                 }
             }
