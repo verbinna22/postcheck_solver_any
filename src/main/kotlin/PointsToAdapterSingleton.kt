@@ -8,7 +8,6 @@ import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
-import kotlin.streams.asSequence
 
 class PointsToAdapterSingleton private constructor(val methodName: String, val depsWithCur: Set<String>) {
     companion object {
@@ -31,11 +30,17 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         val methodList = mutableListOf<Pair<String, Set<String>>>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
 
-        private val currentF2fEdgesMap = Int2ObjectOpenHashMap<BitSet>()
-        private val currentF2fEdgesMapIdsTo = Int2ObjectOpenHashMap<Int>()
-        private val currentF2fEdgesMapIdsFrom = Int2ObjectOpenHashMap<Int>()
-        private val currentF2fEdgesMapIdsFromVar = Int2ObjectOpenHashMap<Int>()
-        private var currentF2fEdgesMapNum = 0
+
+
+        class F2FEdges {
+            val currentF2fEdgesAlias2Alias = Int2ObjectOpenHashMap<BitSet>()
+            val currentF2fEdgesMapIdsTo = Int2ObjectOpenHashMap<Int>()
+            val currentF2fEdgesMapIdsFrom = Int2ObjectOpenHashMap<Int>()
+            val currentF2fEdgesMapIdsFromVar = Int2ObjectOpenHashMap<Int>()
+            var currentF2fEdgesMapNum: Int = 0
+        }
+
+        val method2Edges = mutableMapOf<String, F2FEdges>()
 
         val currentZ2FEdges = mutableSetOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
@@ -141,12 +146,13 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
 
             val currentF2fEdges = mutableListOf<F2FEdge>()
-
-            for ((fromAliasId, toAliasSet) in currentF2fEdgesMap) {
-                toAliasSet.forEach { toAliasId ->
-                    val fromAlias = aliasIdToAlias[fromAliasId]
-                    val toAlias = aliasIdToAlias[toAliasId]
-                    currentF2fEdges.add(F2FEdge(fromAlias, toAlias))
+            for ((_, edges) in method2Edges) {
+                for ((fromAliasId, toAliasSet) in edges.currentF2fEdgesAlias2Alias) {
+                    toAliasSet.forEach { toAliasId ->
+                        val fromAlias = aliasIdToAlias[fromAliasId]
+                        val toAlias = aliasIdToAlias[toAliasId]
+                        currentF2fEdges.add(F2FEdge(fromAlias, toAlias))
+                    }
                 }
             }
 
@@ -440,13 +446,15 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     private fun load0() {
-        for (ribN in 0..<currentF2fEdgesMapNum) {
-            val alFId = currentF2fEdgesMapIdsFrom[ribN]
-            val alTId = currentF2fEdgesMapIdsTo[ribN]
-            if (alFId != alTId) {
-                val alF = aliasIdToAlias[alFId]
-                if (depsWithCur.contains((alF.base as PointsToInstance).getMethodName())) {
-                    okVars.set(currentF2fEdgesMapIdsFromVar[ribN])
+        for (mName in depsWithCur) {
+            if (mName == methodName) {
+                continue
+            }
+            for (ribN in 0..<(method2Edges[mName]?.currentF2fEdgesMapNum ?: 0)) {
+                val alFId = method2Edges[mName]!!.currentF2fEdgesMapIdsFrom[ribN]
+                val alTId = method2Edges[mName]!!.currentF2fEdgesMapIdsTo[ribN]
+                if (alFId != alTId) {
+                    okVars.set(method2Edges[mName]!!.currentF2fEdgesMapIdsFromVar[ribN])
                 }
             }
         }
@@ -477,19 +485,24 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             }
         }
 
-        for (ribN in 0..<currentF2fEdgesMapNum) {
-            val alFId = currentF2fEdgesMapIdsFrom[ribN]
-            val alTId = currentF2fEdgesMapIdsTo[ribN]
-            if (alFId != alTId) {
-                val alF = aliasIdToAlias[alFId]
-                val alT = aliasIdToAlias[alTId]
-                if (depsWithCur.contains((alF.base as PointsToInstance).getMethodName())) {
-                    val varId = currentF2fEdgesMapIdsFromVar[ribN]
+        for (mName in depsWithCur) {
+            if (mName == methodName) {
+                continue
+            }
+            for (ribN in 0..<(method2Edges[mName]?.currentF2fEdgesMapNum ?: 0)) {
+                val alFId = method2Edges[mName]!!.currentF2fEdgesMapIdsFrom[ribN]
+                val alTId = method2Edges[mName]!!.currentF2fEdgesMapIdsTo[ribN]
+                if (alFId != alTId) {
+                    val alF = aliasIdToAlias[alFId]
+                    val alT = aliasIdToAlias[alTId]
+                    val varId = method2Edges[mName]!!.currentF2fEdgesMapIdsFromVar[ribN]
                     val fInd = entityToInd.getInt(alF.base)
                     val tInd = entityToInd.getInt(alT.base)
-                    multiStoresAndLoads.getOrPut(fInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }
+                    multiStoresAndLoads.getOrPut(fInd) { Int2ObjectOpenHashMap() }
+                        .getOrPut(varId) { mutableSetOf() }
                         .add(alF.accessors)
-                    multiStoresAndLoads.getOrPut(tInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }
+                    multiStoresAndLoads.getOrPut(tInd) { Int2ObjectOpenHashMap() }
+                        .getOrPut(varId) { mutableSetOf() }
                         .add(alT.accessors)
                     multiStores.getOrPut(tInd) { Int2ObjectOpenHashMap() }.getOrPut(varId) { mutableSetOf() }
                         .add(alT.accessors)
@@ -690,17 +703,21 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                             fromAliases.forEach { fromAliasId ->
                                 if (toAliasId != fromAliasId) {
                                     val fromAlias = aliasIdToAlias[fromAliasId]
-                                    var fromSet = currentF2fEdgesMap.get(fromAliasId)
+                                    if (!method2Edges.containsKey(methodName)) {
+                                        method2Edges[methodName] = F2FEdges()
+                                    }
+                                    var fromSet = method2Edges[methodName]!!.currentF2fEdgesAlias2Alias.get(fromAliasId)
                                     if (fromSet == null) {
-                                        fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+                                        fromSet = BitSet().also { method2Edges[methodName]!!.currentF2fEdgesAlias2Alias.put(fromAliasId, it) }
                                     }
                                     if (isCorrectStartBase(fromAlias.base) && fromAlias.base.getMethodName() == methodName) {
                                         if (!fromSet.get(toAliasId)) {
-                                            currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
-                                            currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = toAliasId
-                                            currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = var2
+                                            val i = method2Edges[methodName]!!.currentF2fEdgesMapNum
+                                            method2Edges[methodName]!!.currentF2fEdgesMapIdsFrom[i] = fromAliasId
+                                            method2Edges[methodName]!!.currentF2fEdgesMapIdsTo[i] = toAliasId
+                                            method2Edges[methodName]!!.currentF2fEdgesMapIdsFromVar[i] = var2
                                             fromSet.set(toAliasId)
-                                            currentF2fEdgesMapNum++
+                                            method2Edges[methodName]!!.currentF2fEdgesMapNum++
                                         }
                                     }
                                 }
@@ -733,18 +750,22 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val aliases = varIndToSetOfAliases[rvInd]
             if (aliases != null) {
                 for (fromAliasId in aliases.stream()) {
-                    var fromSet = currentF2fEdgesMap.get(fromAliasId)
+                    if (!method2Edges.containsKey(methodName)) {
+                        method2Edges[methodName] = F2FEdges()
+                    }
+                    var fromSet = method2Edges[methodName]!!.currentF2fEdgesAlias2Alias.get(fromAliasId)
                     val fromAlias = aliasIdToAlias[fromAliasId]
                     if (fromSet == null) {
-                        fromSet = BitSet().also { currentF2fEdgesMap.put(fromAliasId, it) }
+                        fromSet = BitSet().also { method2Edges[methodName]!!.currentF2fEdgesAlias2Alias.put(fromAliasId, it) }
                     }
                     if (isCorrectStartBase(fromAlias.base) && fromAlias.base.getMethodName() == methodName) {
                         if (!fromSet.get(fromAliasId)) {
-                            currentF2fEdgesMapIdsFrom[currentF2fEdgesMapNum] = fromAliasId
-                            currentF2fEdgesMapIdsTo[currentF2fEdgesMapNum] = rvAliasId
-                            currentF2fEdgesMapIdsFromVar[currentF2fEdgesMapNum] = rvInd
+                            val i = method2Edges[methodName]!!.currentF2fEdgesMapNum
+                            method2Edges[methodName]!!.currentF2fEdgesMapIdsFrom[i] = fromAliasId
+                            method2Edges[methodName]!!.currentF2fEdgesMapIdsTo[i] = rvAliasId
+                            method2Edges[methodName]!!.currentF2fEdgesMapIdsFromVar[i] = rvInd
                             fromSet.set(rvAliasId)
-                            currentF2fEdgesMapNum++
+                            method2Edges[methodName]!!.currentF2fEdgesMapNum++
                         }
                     }
                 }
