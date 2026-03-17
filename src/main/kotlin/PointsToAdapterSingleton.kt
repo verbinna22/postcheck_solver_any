@@ -318,8 +318,14 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 multiStoresAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()
             } Graph: ${storesAndLoads.map { i -> i.value.map { j -> j.value.size }.sum() }.sum()}"
         ) ////
-//        if (methodName == "org.apache.logging.log4j.core.filter.StringMatchFilter#filter(org.apache.logging.log4j.core.Logger,org.apache.logging.log4j.Level,org.apache.logging.log4j.Marker,java.lang.String,java.lang.Object,java.lang.Object)") {
-//
+//        if (true) {
+//            val se = storesAndLoads.flatMap { a ->
+//                a.value.flatMap { b->
+//                    b.value.map { str ->
+//                        Triple(indToEntity[a.key], indToEntity[b.key], str)
+//                    }
+//                }
+//            }.toList()
 //            val sms = multiStoresAndLoads.flatMap { a ->
 //                a.value.flatMap { b->
 //                    b.value.map { str ->
@@ -669,8 +675,8 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val var1 = entry.intKey
             val toPredAliases = varIndToSetOfAliases[var1]!!
             val var2ToFields = entry.value
-            val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
             toPredAliases.forEach { toPredAliasId ->
+                val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
                 while (subIter.hasNext()) {
                     val subEntry = subIter.next()
                     val var2 = subEntry.intKey
