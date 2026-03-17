@@ -675,18 +675,18 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val var1 = entry.intKey
             val toPredAliases = varIndToSetOfAliases[var1]!!
             val var2ToFields = entry.value
-            toPredAliases.forEach { toPredAliasId ->
-                val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
-                while (subIter.hasNext()) {
-                    val subEntry = subIter.next()
-                    val var2 = subEntry.intKey
-                    val fromAliases = varIndToSetOfAliases[var2]!!
-                    val fields = subEntry.value
+            val subIter = var2ToFields.int2ObjectEntrySet().fastIterator()
+            while (subIter.hasNext()) {
+                val subEntry = subIter.next()
+                val var2 = subEntry.intKey
+                val fromAliases = varIndToSetOfAliases[var2]!!
+                val fields = subEntry.value
+                toPredAliases.forEach { toPredAliasId ->
                     for (field in fields) {
                         val toPredAlias = aliasIdToAlias[toPredAliasId]
-                        val toAlias = toPredAlias.action(field)
-                        val toAliasId = getAliasId(toAlias)
-                        if (toAlias.base.getMethodName() == methodName) {
+                        if (toPredAlias.base.getMethodName() == methodName) {
+                            val toAlias = toPredAlias.action(field)
+                            val toAliasId = getAliasId(toAlias)
                             fromAliases.forEach { fromAliasId ->
                                 if (toAliasId != fromAliasId) {
                                     val fromAlias = aliasIdToAlias[fromAliasId]
