@@ -1,12 +1,21 @@
 package ru.mylogininya
 
+import ru.mylogininya.PointsToAdapterSingleton.Companion.homeDirectory
+import kotlin.io.path.Path
+import kotlin.io.path.bufferedWriter
+import kotlin.io.path.div
+import kotlin.io.path.listDirectoryEntries
+
 fun main() {
-    val (edges, markedEdges) = PointsToAdapterSingleton.findEdges()
+    val (edges, _) = PointsToAdapterSingleton.findEdges()
     // --------
-    println("${edges.size} edges")
-    edges.forEach { edge -> println(edge.printWithMethod()) }
-    println("${markedEdges.size} marked edges")
-    markedEdges.forEach { edge -> println(edge.printWithMethod()) }
-    // --------
-    SummaryChecker.checkSummaries(edges, markedEdges)
+    Path(homeDirectory).listDirectoryEntries().first().also { projectDirectory ->
+        (projectDirectory / "summary.txt").bufferedWriter().use { writer ->
+            println("${edges.size} edges")
+            edges.forEach { edge ->
+                println(edge.printWithMethod())
+                writer.write("${edge.printWithMethod()}\n")
+            }
+        }
+    }
 }
