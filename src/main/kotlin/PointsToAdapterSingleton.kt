@@ -29,7 +29,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         }
 
         val methodList = mutableListOf<Pair<String, Set<String>>>()
-        const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
+        const val homeDirectory = "/home/nikita/processStdlibMethods/taint_in_graph_no_field/graphs"
 
         private val currentF2fEdgesMap = Int2ObjectOpenHashMap<BitSet>()
         private val currentF2fEdgesMapIdsTo = Int2ObjectOpenHashMap<Int>()

@@ -81,9 +81,9 @@ object SummaryChecker {
     val lock = ReentrantLock()
 
     init {
-        val file = File("/home/nikita/process_taint_with_solver/aspectDump.txt").bufferedReader()
+        val file = File("/home/nikita/processStdlibMethods/aspectDump.txt").bufferedReader()
         var line = file.readLine()
-        val methods: Set<Pair<String, String>> = File("/home/nikita/process_taint_with_solver/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
+        val methods: Set<Pair<String, String>> = File("/home/nikita/processStdlibMethods/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
             val parts = stringRepr.split(".")
             Pair(parts.dropLast(1).joinToString("."), parts.last())
         }.toSet()
@@ -357,8 +357,8 @@ object SummaryChecker {
 
     // var debug = false ///
 
-    private const val fileName = "/home/nikita/process_taint_with_solver/analysis_stats_solver_v.txt"
-    private const val errorLog = "/home/nikita/process_taint_with_solver/analysis_errors_solver_v.txt"
+    private const val fileName = "/home/nikita/processStdlibMethods/analysis_stats_solver_v.txt"
+    private const val errorLog = "/home/nikita/processStdlibMethods/analysis_errors_solver_v.txt"
 
     private fun reportError(string: String) {
         println("$string")
