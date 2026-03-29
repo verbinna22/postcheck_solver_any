@@ -141,7 +141,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 methodId += 1 /////
             }
 
-            val currentF2fEdges = mutableListOf<F2FEdge>()
+            val currentF2fEdges = mutableSetOf<F2FEdge>()
 
             for ((_, rbs) in mName2RibSet) {
                 for (r in rbs) {
@@ -565,13 +565,14 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     fun findEdges(z2fs: MutableSet<Z2FEdge>) {
         // TODO: local aliases after testing
         val stackToWatch = IntArrayList()
-        while (currentStartBases.isNotEmpty()) {
-            stackToWatch.add(currentStartBases.removeLast())
+        while (currentStartBases.isNotEmpty()) { // TODO: dublicate
+            val beginId = currentStartBases.removeLast()
+            stackToWatch.add(beginId)
             val emptyListId = getAccessorsId(listOf())
             stackToWatch.add(emptyListId)
             stackToWatch.add(emptyListId)
             stackToWatch.add(-1)
-            stackToWatch.add(-1)
+            stackToWatch.add(0)
             while (!stackToWatch.isEmpty()) {
                 val varId = stackToWatch.getOrElse(stackToWatch.size - 5) { -1 }
                 val al1 = stackToWatch.getOrElse(stackToWatch.size - 4) { -1 }
@@ -595,12 +596,13 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(newNext)
                     stackToWatch.add(al1)
                     stackToWatch.add(al2)
+                    stackToWatch.add(-1)
                     stackToWatch.add(wasStore)
                     if (endBases.get(newNext)) {
-                        mName2RibSet[methodName]!!.add(F2FInternal(varId, newNext, al1, al2))
+                        mName2RibSet[methodName]!!.add(F2FInternal(beginId, newNext, al1, al2))
                     }
                 } else if (wasStore == 0) {
-                    val newNext = loadsFrom[varId].nextSetBit(nxt + 1)
+                    val newNext = loadsFrom[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessors = accsIdToAccessorsList[al1]
                     if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 1
@@ -616,7 +618,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(-1)
                     stackToWatch.add(0)
                 } else if (wasStore == 1) {
-                    val newNext = storesFrom[varId].nextSetBit(nxt + 1)
+                    val newNext = storesFrom[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessors = accsIdToAccessorsList[al2]
                     if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 2
@@ -632,7 +634,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(-1)
                     stackToWatch.add(4)
                 } else if (wasStore == 2) {
-                    val newNext = srFrom[varId].nextSetBit(nxt + 1)
+                    val newNext = srFrom[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessorsHaveFrom = accsIdToAccessorsList[al1]
                     val accessorsHaveTo = accsIdToAccessorsList[al2]
                     if (newNext == -1) {
@@ -669,7 +671,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(-1)
                     stackToWatch.add(0)
                 } else if (wasStore == 3) {
-                    val newNext = srFrom[varId].nextSetBit(nxt + 1)
+                    val newNext = srFrom[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessorsHaveFrom = accsIdToAccessorsList[al1]
                     val accessorsHaveTo = accsIdToAccessorsList[al2]
                     if (newNext == -1) {
@@ -710,7 +712,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(-1)
                     stackToWatch.add(4)
                 } else if (wasStore == 4) {
-                    val newNext = loadsTo[varId].nextSetBit(nxt + 1)
+                    val newNext = loadsTo[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessors = accsIdToAccessorsList[al2]
                     if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 5
@@ -726,7 +728,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(-1)
                     stackToWatch.add(4)
                 } else if (wasStore == 5) {
-                    val newNext = srTo[varId].nextSetBit(nxt + 1)
+                    val newNext = srTo[varId]?.nextSetBit(nxt + 1) ?: -1
                     val accessorsHaveFrom = accsIdToAccessorsList[al1]
                     val accessorsHaveTo = accsIdToAccessorsList[al2]
                     if (newNext == -1) {
