@@ -31,7 +31,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
         data class F2FInternal(val fromVarId: Int, val toVarId: Int, val fromAlId: Int, val toAlId: Int)
 
-        val mName2RibSet = mutableMapOf<String, MutableList<F2FInternal>>()
+        val mName2RibSet = mutableMapOf<String, MutableSet<F2FInternal>>()
 
         val methodList = mutableListOf<Pair<String, Set<String>>>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
@@ -336,7 +336,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //        ) ////
 
     private fun load0() {
-        mName2RibSet[methodName] = mutableListOf()
+        mName2RibSet[methodName] = mutableSetOf()
         for (dep in depsWithCur) {
             for (r in mName2RibSet[dep]!!) {
                 srFrom.getOrPut(r.fromVarId) { BitSet() }.set(srRibNum)
@@ -602,7 +602,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 } else if (wasStore == 0) {
                     val newNext = loadsFrom[varId].nextSetBit(nxt + 1)
                     val accessors = accsIdToAccessorsList[al1]
-                    if (newNext == -1) {
+                    if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 1
                         continue
                     }
@@ -618,7 +618,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 } else if (wasStore == 1) {
                     val newNext = storesFrom[varId].nextSetBit(nxt + 1)
                     val accessors = accsIdToAccessorsList[al2]
-                    if (newNext == -1) {
+                    if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 2
                         continue
                     }
@@ -655,7 +655,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         listOf<String>()
                     }
                     val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
-                    if (getAccessorsId(midAccessors) != al2) {
+                    if (getAccessorsId(midAccessors) != al2
+                        || accessorsHaveFrom.size + addToHaveFrom.size > MAX_ACCESSORS
+                        || accessorsTo.size + addToHaveTo.size > MAX_ACCESSORS) {
                         continue
                     }
 
@@ -694,7 +696,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         listOf<String>()
                     }
                     val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
-                    if (getAccessorsId(midAccessors) != al2) {
+                    if (getAccessorsId(midAccessors) != al2
+                        || accessorsHaveFrom.size + addToHaveFrom.size > MAX_ACCESSORS
+                        || accessorsTo.size + addToHaveTo.size > MAX_ACCESSORS) {
                         continue
                     }
 
@@ -708,7 +712,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                 } else if (wasStore == 4) {
                     val newNext = loadsTo[varId].nextSetBit(nxt + 1)
                     val accessors = accsIdToAccessorsList[al2]
-                    if (newNext == -1) {
+                    if (newNext == -1 || accessors.size >= MAX_ACCESSORS) {
                         stackToWatch[stackToWatch.size - 1] = 5
                         continue
                     }
@@ -749,7 +753,9 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         listOf<String>()
                     }
                     val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
-                    if (getAccessorsId(midAccessors) != al2) {
+                    if (getAccessorsId(midAccessors) != al2
+                        || accessorsHaveFrom.size + addToHaveFrom.size > MAX_ACCESSORS
+                        || accessorsTo.size + addToHaveTo.size > MAX_ACCESSORS) {
                         continue
                     }
 
