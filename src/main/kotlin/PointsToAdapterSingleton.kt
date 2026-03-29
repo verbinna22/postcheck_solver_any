@@ -15,19 +15,6 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     companion object {
         val MAX_ACCESSORS: Int = 5 //5
 
-//        private val aliasIdToAlias = mutableListOf<Alias>()
-//        private val aliasToId: Object2IntOpenHashMap<Alias> = Object2IntOpenHashMap<Alias>().also {
-//            it.defaultReturnValue(-1)
-//        }
-//        private fun getAliasId(alias: Alias): Int {
-//            val currentId = aliasToId.getInt(alias)
-//            if (currentId != -1) return currentId
-//
-//            val id = aliasIdToAlias.size
-//            aliasToId.put(alias, id)
-//            aliasIdToAlias.add(alias)
-//            return id
-//        }
         private val accsIdToAccessorsList = mutableListOf<AliasTail>()
         private val accessorsToId = Object2IntOpenHashMap<AliasTail>().also {
             it.defaultReturnValue(-1)
@@ -42,14 +29,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             return id
         }
 
+        data class F2FInternal(val fromVarId: Int, val toVarId: Int, val fromAlId: Int, val toAlId: Int)
+
+        val mName2RibSet = mutableMapOf<String, MutableList<F2FInternal>>()
+
         val methodList = mutableListOf<Pair<String, Set<String>>>()
         const val homeDirectory = "/home/nikita/process_taint_with_solver/taint_in_graph_no_field/graphs"
-
-        private val currentF2fEdgesMap = Int2ObjectOpenHashMap<BitSet>()
-        private val currentF2fEdgesMapIdsTo = Int2ObjectOpenHashMap<Int>()
-        private val currentF2fEdgesMapIdsFrom = Int2ObjectOpenHashMap<Int>()
-        private val currentF2fEdgesMapIdsFromVar = Int2ObjectOpenHashMap<Int>()
-        private var currentF2fEdgesMapNum = 0
 
         val currentZ2FEdges = mutableSetOf<Z2FEdge>()
         val defaultEdges = mutableListOf<F2FEdge>()
@@ -59,6 +44,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         var graphList: List<Pair<List<Int>, List<String>>>? = null
         val loadStoreIncidentVs = BitSet()
         val epVertices = BitSet()
+        val epId2Entity = mutableMapOf<Int, AliasBase>()
 
         init {
             val countDirEntries = Path(homeDirectory).listDirectoryEntries().count()
@@ -66,6 +52,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val pts = mutableListOf<Pair<Int, PointsToInstance?>>()
             val prList = mutableListOf<Pair<Int, Int>>()
             val gList = mutableListOf<Pair<List<Int>, List<String>>>()
+
             Path(homeDirectory).listDirectoryEntries().forEach { projectDirectory ->
                 (projectDirectory / "full_methods_list.txt").bufferedReader().forEachLine { line ->
                     val (m, ms) = line.split("@@@")
@@ -156,13 +143,18 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
             val currentF2fEdges = mutableListOf<F2FEdge>()
 
-//            for ((fromAliasId, toAliasSet) in currentF2fEdgesMap) {
-//                toAliasSet.forEach { toAliasId ->
-//                    val fromAlias = aliasIdToAlias[fromAliasId]
-//                    val toAlias = aliasIdToAlias[toAliasId]
-//                    currentF2fEdges.add(F2FEdge(fromAlias, toAlias))
-//                }
-//            } // TODO
+            for ((_, rbs) in mName2RibSet) {
+                for (r in rbs) {
+                    if (epId2Entity[r.fromVarId] != null) {
+                        currentF2fEdges.add(
+                            F2FEdge(
+                                Alias(epId2Entity[r.fromVarId]!!, accsIdToAccessorsList[r.fromAlId]),
+                                Alias(epId2Entity[r.toVarId]!!, accsIdToAccessorsList[r.toAlId]),
+                            )
+                        )
+                    }
+                }
+            }
 
             currentF2fEdges.addAll(defaultEdges)
             val fs = currentF2fEdges.filter {
@@ -306,19 +298,31 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
         it.defaultReturnValue(-1)
     }
 
-    private val storesAndLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
-    private val stores = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
-
-    //private val loads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<String>>>()
-
-    //private val varIndToLoadSetOfAliases: MutableMap<Int, BitSet> = mutableMapOf()
     private val unknownToIds: MutableMap<String, BitSet> = mutableMapOf()
 
 
-    val okVars = BitSet()
+    val currentStartBases: MutableList<Int> = mutableListOf()
+    val endBases: BitSet = BitSet()
 
-    private val multiStoresAndLoads = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<List<String>>>>()
-    private val multiStores = Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<MutableSet<List<String>>>>()
+    val loadsFrom: Int2ObjectOpenHashMap<BitSet> = Int2ObjectOpenHashMap()
+    val loadsTo: Int2ObjectOpenHashMap<BitSet> = Int2ObjectOpenHashMap()
+    val loadId2Acc: Int2ObjectOpenHashMap<String> = Int2ObjectOpenHashMap()
+    val loadId2End: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    val loadId2Start: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    var loadRibNum = 0
+
+    val storesFrom: Int2ObjectOpenHashMap<BitSet> = Int2ObjectOpenHashMap()
+    val storeId2Acc: Int2ObjectOpenHashMap<String> = Int2ObjectOpenHashMap()
+    val storeId2End: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    var storesRibNum = 0
+
+    val srFrom: Int2ObjectOpenHashMap<BitSet> = Int2ObjectOpenHashMap()
+    val srTo: Int2ObjectOpenHashMap<BitSet> = Int2ObjectOpenHashMap()
+    val sr2Al1: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    val sr2Al2: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    val sr2Start: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    val sr2End: Int2ObjectOpenHashMap<Int> = Int2ObjectOpenHashMap()
+    var srRibNum = 0
 
     init {
         loadPointsToInformation()
@@ -332,6 +336,18 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //        ) ////
 
     private fun load0() {
+        mName2RibSet[methodName] = mutableListOf()
+        for (dep in depsWithCur) {
+            for (r in mName2RibSet[dep]!!) {
+                srFrom.getOrPut(r.fromVarId) { BitSet() }.set(srRibNum)
+                srTo.getOrPut(r.toVarId) { BitSet() }.set(srRibNum)
+                sr2Start[srRibNum] = r.fromVarId
+                sr2End[srRibNum] = r.toVarId
+                sr2Al1[srRibNum] = r.fromAlId
+                sr2Al2[srRibNum] = r.toAlId
+                srRibNum++
+            }
+        }
 //        for (ribN in 0..<currentF2fEdgesMapNum) {
 //            val alFId = currentF2fEdgesMapIdsFrom[ribN]
 //            val alTId = currentF2fEdgesMapIdsTo[ribN]
@@ -352,6 +368,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             var ptiUpd = pti
             if (epVertices.get(id)) {
                 ptiUpd = toEntryPoint(pti)
+                epId2Entity[id] = (ptiUpd as AliasBase)
             }
             indToEntity[id] = ptiUpd
             entityToInd[ptiUpd] = id
@@ -362,11 +379,11 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             if (pti == null) {
                 println("Unsupported value of $id")
             } else if (pti.isOkWithMethod(methodName, depsWithCur)) {
-                okVars.clear(id)
+                // okVars.clear(id)
                 watch(pti, id)
-            } else if (okVars.get(id)) {
-                watch(pti, id)
-            }
+            } //else if (okVars.get(id)) {
+//                watch(pti, id)
+//            }
         }
 
 //        for (ribN in 0..<currentF2fEdgesMapNum) {
@@ -428,15 +445,27 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val bInd = vars[1] //.field
             val entA = indToEntity[aInd]
             val entB = indToEntity[bInd]
-            if (entA != null && entB != null && !okVars.get(aInd) && !okVars.get(bInd)) {
+            if (entA != null && entB != null) {
                 val fInd = vars[2]
                 val acc = fIndToAccessor[fInd]!!
                 if (items[2] == "store_i") {
-                    storesAndLoads.getOrPut(aInd) { Int2ObjectOpenHashMap() }.getOrPut(bInd) { mutableSetOf() }.add(acc)
-                    stores.getOrPut(aInd) { Int2ObjectOpenHashMap() }.getOrPut(bInd) { mutableSetOf() }.add(acc)
+                    storesFrom.getOrPut(bInd) { BitSet() }.set(storesRibNum)
+                    storeId2Acc[storesRibNum] = acc
+                    storeId2End[storesRibNum] = aInd
+                    storesRibNum++
+
+//                    storesAndLoads.getOrPut(aInd) { Int2ObjectOpenHashMap() }.getOrPut(bInd) { mutableSetOf() }.add(acc)
+//                    stores.getOrPut(aInd) { Int2ObjectOpenHashMap() }.getOrPut(bInd) { mutableSetOf() }.add(acc)
                     // a.b = c // varToAliasesMap[aInd]!! varToAliasesMap[bInd]!!
                 } else {
-                    storesAndLoads.getOrPut(bInd) { Int2ObjectOpenHashMap() }.getOrPut(aInd) { mutableSetOf() }.add(acc)
+                    loadsFrom.getOrPut(aInd) { BitSet() } .set(loadRibNum)
+                    loadsTo.getOrPut(bInd) { BitSet() } .set(loadRibNum)
+                    loadId2Acc[loadRibNum] = acc
+                    loadId2Start[loadRibNum] = aInd
+                    loadId2End[loadRibNum] = bInd
+                    loadRibNum++
+
+//                    storesAndLoads.getOrPut(bInd) { Int2ObjectOpenHashMap() }.getOrPut(aInd) { mutableSetOf() }.add(acc)
                     // c -> a.b | a, b, c
                 }
             }
@@ -449,11 +478,15 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             for (v in vs.stream()) {
                 val entity = indToEntity[v]!!
                 if (entity is AliasBase && (isCorrectBase(entity))) { // all is /AliasBase/, aliases only for args, rv, this or load - store ribs
-//                    if (entity.getMethodName() == methodName) {
+                    if (entity.getMethodName() == methodName) {
+                        endBases.set(v)
+                        if (isCorrectStartBase(entity)) {
+                            currentStartBases.add(v)
+                        }
 //                        val alias = Alias(entity, listOf())
 //                        val aliasId = getAliasId(alias)
 //                        aliases.set(aliasId)
-//                    }
+                    }
                 } else if (!loadStoreIncidentVs.get(v)) {
                     redundantAliases.set(v)
                 }
@@ -531,27 +564,6 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 
     fun findEdges(z2fs: MutableSet<Z2FEdge>) {
         // TODO: local aliases after testing
-        val currentStartBases: MutableList<Int> = TODO()
-        val endBases: BitSet = TODO()
-
-        val loadsFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
-        val loadsTo: Int2ObjectOpenHashMap<BitSet> = TODO()
-        val loadId2Acc: Int2ObjectOpenHashMap<String> = TODO()
-        val loadId2End: Int2ObjectOpenHashMap<Int> = TODO()
-        val loadId2Start: Int2ObjectOpenHashMap<Int> = TODO()
-
-        val storesFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
-        val storeId2Acc: Int2ObjectOpenHashMap<String> = TODO()
-        val storeId2End: Int2ObjectOpenHashMap<Int> = TODO()
-
-        val srFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
-        val srTo: Int2ObjectOpenHashMap<BitSet> = TODO()
-        val sr2Al1: Int2ObjectOpenHashMap<Int> = TODO()
-        val sr2Al2: Int2ObjectOpenHashMap<Int> = TODO()
-        val sr2Start: Int2ObjectOpenHashMap<Int> = TODO()
-        val sr2End: Int2ObjectOpenHashMap<Int> = TODO()
-
-
         val stackToWatch = IntArrayList()
         while (currentStartBases.isNotEmpty()) {
             stackToWatch.add(currentStartBases.removeLast())
@@ -585,7 +597,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(al2)
                     stackToWatch.add(wasStore)
                     if (endBases.get(newNext)) {
-                        TODO() // add as rib
+                        mName2RibSet[methodName]!!.add(F2FInternal(varId, newNext, al1, al2))
                     }
                 } else if (wasStore == 0) {
                     val newNext = loadsFrom[varId].nextSetBit(nxt + 1)
@@ -652,7 +664,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     stackToWatch.add(newVar)
                     stackToWatch.add(newAl1)
                     stackToWatch.add(newAl2)
-                    stackToWatch.add(-1) // TODO
+                    stackToWatch.add(-1)
                     stackToWatch.add(0)
                 } else if (wasStore == 3) {
                     val newNext = srFrom[varId].nextSetBit(nxt + 1)
