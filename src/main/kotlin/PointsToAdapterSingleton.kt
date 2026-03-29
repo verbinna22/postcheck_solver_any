@@ -8,8 +8,8 @@ import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
-import kotlin.streams.asSequence
-import java.util.LinkedList
+
+typealias AliasTail = List<String>
 
 class PointsToAdapterSingleton private constructor(val methodName: String, val depsWithCur: Set<String>) {
     companion object {
@@ -28,13 +28,12 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
 //            aliasIdToAlias.add(alias)
 //            return id
 //        }
-
-        private val accsIdToAccessorsList = mutableListOf<LinkedList<String>>()
-        private val accessorsToId = Object2IntOpenHashMap<LinkedList<String>>().also {
+        private val accsIdToAccessorsList = mutableListOf<AliasTail>()
+        private val accessorsToId = Object2IntOpenHashMap<AliasTail>().also {
             it.defaultReturnValue(-1)
         }
 
-        private fun getAccessorsId(accs: LinkedList<String>): Int {
+        private fun getAccessorsId(accs: AliasTail): Int {
             val currentId = accessorsToId.getInt(accs)
             if (currentId != -1) return currentId
             val id = accsIdToAccessorsList.size
@@ -531,26 +530,45 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     }
 
     fun findEdges(z2fs: MutableSet<Z2FEdge>) {
+        // TODO: local aliases after testing
         val currentStartBases: MutableList<Int> = TODO()
         val endBases: BitSet = TODO()
+
         val loadsFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
+        val loadsTo: Int2ObjectOpenHashMap<BitSet> = TODO()
         val loadId2Acc: Int2ObjectOpenHashMap<String> = TODO()
         val loadId2End: Int2ObjectOpenHashMap<Int> = TODO()
+        val loadId2Start: Int2ObjectOpenHashMap<Int> = TODO()
+
+        val storesFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
+        val storeId2Acc: Int2ObjectOpenHashMap<String> = TODO()
+        val storeId2End: Int2ObjectOpenHashMap<Int> = TODO()
+
+        val srFrom: Int2ObjectOpenHashMap<BitSet> = TODO()
+        val srTo: Int2ObjectOpenHashMap<BitSet> = TODO()
+        val sr2Al1: Int2ObjectOpenHashMap<Int> = TODO()
+        val sr2Al2: Int2ObjectOpenHashMap<Int> = TODO()
+        val sr2Start: Int2ObjectOpenHashMap<Int> = TODO()
+        val sr2End: Int2ObjectOpenHashMap<Int> = TODO()
+
 
         val stackToWatch = IntArrayList()
         while (currentStartBases.isNotEmpty()) {
             stackToWatch.add(currentStartBases.removeLast())
-            val emptyListId = getAccessorsId(LinkedList())
+            val emptyListId = getAccessorsId(listOf())
             stackToWatch.add(emptyListId)
             stackToWatch.add(emptyListId)
-            stackToWatch.add(0)
-            stackToWatch.add(0)
+            stackToWatch.add(-1)
+            stackToWatch.add(-1)
             while (!stackToWatch.isEmpty()) {
                 val varId = stackToWatch.getOrElse(stackToWatch.size - 5) { -1 }
                 val al1 = stackToWatch.getOrElse(stackToWatch.size - 4) { -1 }
                 val al2 = stackToWatch.getOrElse(stackToWatch.size - 3) { -1 }
                 val nxt = stackToWatch.getOrElse(stackToWatch.size - 2) { -1 }
                 val wasStore = stackToWatch.getOrElse(stackToWatch.size - 1) { -1 }
+                if (stackToWatch.size % 5 != 0) {
+                    throw IllegalStateException("stack size")
+                }
                 if (stackToWatch.size % 10 == 5) {
                     val newNext = varToAliasesVarsMap[varId].nextSetBit(nxt + 1)
                     if (newNext == -1) {
@@ -573,6 +591,74 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                     val newNext = loadsFrom[varId].nextSetBit(nxt + 1)
                     val accessors = accsIdToAccessorsList[al1]
                     if (newNext == -1) {
+                        stackToWatch[stackToWatch.size - 1] = 1
+                        continue
+                    }
+                    stackToWatch[stackToWatch.size - 2] = newNext
+                    val newVar = loadId2End[newNext]
+                    stackToWatch.add(newVar)
+                    val acc = loadId2Acc[newNext]
+                    val newAl = getAccessorsId(accessors + acc)
+                    stackToWatch.add(newAl)
+                    stackToWatch.add(al2)
+                    stackToWatch.add(-1)
+                    stackToWatch.add(0)
+                } else if (wasStore == 1) {
+                    val newNext = storesFrom[varId].nextSetBit(nxt + 1)
+                    val accessors = accsIdToAccessorsList[al2]
+                    if (newNext == -1) {
+                        stackToWatch[stackToWatch.size - 1] = 2
+                        continue
+                    }
+                    stackToWatch[stackToWatch.size - 2] = newNext
+                    val newVar = storeId2End[newNext]
+                    stackToWatch.add(newVar)
+                    val acc = storeId2Acc[newNext]
+                    val newAl = getAccessorsId(listOf(acc) + accessors)
+                    stackToWatch.add(al1)
+                    stackToWatch.add(newAl)
+                    stackToWatch.add(-1)
+                    stackToWatch.add(4)
+                } else if (wasStore == 2) {
+                    val newNext = srFrom[varId].nextSetBit(nxt + 1)
+                    val accessorsHaveFrom = accsIdToAccessorsList[al1]
+                    val accessorsHaveTo = accsIdToAccessorsList[al2]
+                    if (newNext == -1) {
+                        stackToWatch[stackToWatch.size - 1] = 3
+                        continue
+                    }
+                    stackToWatch[stackToWatch.size - 2] = newNext
+                    val newVar = sr2End[newNext]
+                    val accessorsFrom = accsIdToAccessorsList[sr2Al1[newNext]]
+                    val accessorsTo = accsIdToAccessorsList[sr2Al2[newNext]]
+
+                    val addToHaveFrom = if (accessorsFrom.size > accessorsHaveTo.size) {
+                        accessorsFrom.drop(accessorsHaveTo.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val addToHaveTo = if (accessorsFrom.size < accessorsHaveTo.size) {
+                        accessorsHaveTo.drop(accessorsFrom.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
+                    if (getAccessorsId(midAccessors) != al2) {
+                        continue
+                    }
+
+                    val newAl1 = getAccessorsId(accessorsHaveFrom + addToHaveFrom)
+                    val newAl2 = getAccessorsId(accessorsTo + addToHaveTo)
+                    stackToWatch.add(newVar)
+                    stackToWatch.add(newAl1)
+                    stackToWatch.add(newAl2)
+                    stackToWatch.add(-1) // TODO
+                    stackToWatch.add(0)
+                } else if (wasStore == 3) {
+                    val newNext = srFrom[varId].nextSetBit(nxt + 1)
+                    val accessorsHaveFrom = accsIdToAccessorsList[al1]
+                    val accessorsHaveTo = accsIdToAccessorsList[al2]
+                    if (newNext == -1) {
                         stackToWatch.removeLast()
                         stackToWatch.removeLast()
                         stackToWatch.removeLast()
@@ -581,15 +667,89 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
                         continue
                     }
                     stackToWatch[stackToWatch.size - 2] = newNext
-                    val newVar = loadId2End[newNext]
+                    val newVar = sr2End[newNext]
+                    val accessorsFrom = accsIdToAccessorsList[sr2Al1[newNext]]
+                    val accessorsTo = accsIdToAccessorsList[sr2Al2[newNext]]
+
+                    val addToHaveFrom = if (accessorsFrom.size > accessorsHaveTo.size) {
+                        accessorsFrom.drop(accessorsHaveTo.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val addToHaveTo = if (accessorsFrom.size < accessorsHaveTo.size) {
+                        accessorsHaveTo.drop(accessorsFrom.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
+                    if (getAccessorsId(midAccessors) != al2) {
+                        continue
+                    }
+
+                    val newAl1 = getAccessorsId(accessorsHaveFrom + addToHaveFrom)
+                    val newAl2 = getAccessorsId(accessorsTo + addToHaveTo)
+                    stackToWatch.add(newVar)
+                    stackToWatch.add(newAl1)
+                    stackToWatch.add(newAl2)
+                    stackToWatch.add(-1)
+                    stackToWatch.add(4)
+                } else if (wasStore == 4) {
+                    val newNext = loadsTo[varId].nextSetBit(nxt + 1)
+                    val accessors = accsIdToAccessorsList[al2]
+                    if (newNext == -1) {
+                        stackToWatch[stackToWatch.size - 1] = 5
+                        continue
+                    }
+                    stackToWatch[stackToWatch.size - 2] = newNext
+                    val newVar = loadId2Start[newNext]
                     stackToWatch.add(newVar)
                     val acc = loadId2Acc[newNext]
-                    val newAl = getAccessorsId((accessors.clone() as LinkedList<String>).also { it.addLast(acc) })
+                    val newAl = getAccessorsId(listOf(acc) + accessors)
+                    stackToWatch.add(al1)
                     stackToWatch.add(newAl)
-                    stackToWatch.add(al2)
-                    stackToWatch.add(wasStore)
-                } else {
+                    stackToWatch.add(-1)
+                    stackToWatch.add(4)
+                } else if (wasStore == 5) {
+                    val newNext = srTo[varId].nextSetBit(nxt + 1)
+                    val accessorsHaveFrom = accsIdToAccessorsList[al1]
+                    val accessorsHaveTo = accsIdToAccessorsList[al2]
+                    if (newNext == -1) {
+                        stackToWatch.removeLast()
+                        stackToWatch.removeLast()
+                        stackToWatch.removeLast()
+                        stackToWatch.removeLast()
+                        stackToWatch.removeLast()
+                        continue
+                    }
+                    stackToWatch[stackToWatch.size - 2] = newNext
+                    val newVar = sr2Start[newNext]
+                    val accessorsFrom = accsIdToAccessorsList[sr2Al2[newNext]]
+                    val accessorsTo = accsIdToAccessorsList[sr2Al1[newNext]]
 
+                    val addToHaveFrom = if (accessorsFrom.size > accessorsHaveTo.size) {
+                        accessorsFrom.drop(accessorsHaveTo.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val addToHaveTo = if (accessorsFrom.size < accessorsHaveTo.size) {
+                        accessorsHaveTo.drop(accessorsFrom.size)
+                    } else {
+                        listOf<String>()
+                    }
+                    val midAccessors = accessorsFrom.take(accessorsHaveTo.size)
+                    if (getAccessorsId(midAccessors) != al2) {
+                        continue
+                    }
+
+                    val newAl1 = getAccessorsId(accessorsHaveFrom + addToHaveFrom)
+                    val newAl2 = getAccessorsId(accessorsTo + addToHaveTo)
+                    stackToWatch.add(newVar)
+                    stackToWatch.add(newAl1)
+                    stackToWatch.add(newAl2)
+                    stackToWatch.add(-1)
+                    stackToWatch.add(4)
+                } else {
+                    throw IllegalStateException("was store")
                 }
             }
         }
