@@ -565,7 +565,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     fun findEdges(z2fs: MutableSet<Z2FEdge>) {
         // TODO: local aliases after testing
         val stackToWatch = IntArrayList()
-        while (currentStartBases.isNotEmpty()) { // TODO: dublicate
+        while (currentStartBases.isNotEmpty()) {
             val beginId = currentStartBases.removeLast()
             stackToWatch.add(beginId)
             val emptyListId = getAccessorsId(listOf())
