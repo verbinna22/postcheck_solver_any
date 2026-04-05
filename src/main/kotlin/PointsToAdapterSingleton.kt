@@ -338,14 +338,19 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
     private fun load0() {
         mName2RibSet[methodName] = mutableSetOf()
         for (dep in depsWithCur) {
-            for (r in mName2RibSet[dep]!!) {
-                srFrom.getOrPut(r.fromVarId) { BitSet() }.set(srRibNum)
-                srTo.getOrPut(r.toVarId) { BitSet() }.set(srRibNum)
-                sr2Start[srRibNum] = r.fromVarId
-                sr2End[srRibNum] = r.toVarId
-                sr2Al1[srRibNum] = r.fromAlId
-                sr2Al2[srRibNum] = r.toAlId
-                srRibNum++
+            if (mName2RibSet[dep] == null) {
+                println("OOps $dep")
+            }
+            if (mName2RibSet[dep] != null) {
+                for (r in mName2RibSet[dep]!!) {
+                    srFrom.getOrPut(r.fromVarId) { BitSet() }.set(srRibNum)
+                    srTo.getOrPut(r.toVarId) { BitSet() }.set(srRibNum)
+                    sr2Start[srRibNum] = r.fromVarId
+                    sr2End[srRibNum] = r.toVarId
+                    sr2Al1[srRibNum] = r.fromAlId
+                    sr2Al2[srRibNum] = r.toAlId
+                    srRibNum++
+                }
             }
         }
 //        for (ribN in 0..<currentF2fEdgesMapNum) {
