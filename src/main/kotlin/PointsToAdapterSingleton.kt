@@ -181,7 +181,7 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             if (!(this is PointsToInstance.This || this is PointsToInstance.Argument || this is PointsToInstance.ReturnValue)) {
                 throw IllegalStateException("must not be this, arg, rv")
             }
-            if (name.contains("<")) {
+            if (name.contains("<") && !name.contains("<init>")) {
                 throw IllegalStateException("must not contain <")
             }
             if (name.contains("(id:")) {
