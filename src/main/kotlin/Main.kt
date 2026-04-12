@@ -7,7 +7,7 @@ import kotlin.io.path.div
 import kotlin.io.path.listDirectoryEntries
 
 fun main() {
-    val (edges, _) = PointsToAdapterSingleton.findEdges()
+    val (edges, markedEdges) = PointsToAdapterSingleton.findEdges()
     // --------
     Path(homeDirectory).listDirectoryEntries().first().also { projectDirectory ->
         (projectDirectory / "summary.txt").bufferedWriter().use { writer ->
@@ -18,4 +18,5 @@ fun main() {
             }
         }
     }
+    SummaryChecker.checkSummaries(edges, markedEdges)
 }

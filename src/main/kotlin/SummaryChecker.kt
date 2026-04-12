@@ -81,7 +81,7 @@ object SummaryChecker {
     val lock = ReentrantLock()
 
     init {
-        val file = File("/home/nikita/processStdlibMethods/aspectDump.txt").bufferedReader()
+        val file = File("/home/nikita/processStdlibMethods/aspectDumpStdlib.txt").bufferedReader()
         var line = file.readLine()
         val methods: Set<Pair<String, String>> = File("/home/nikita/processStdlibMethods/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
             val parts = stringRepr.split(".")
