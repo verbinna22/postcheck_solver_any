@@ -84,8 +84,8 @@ object SummaryChecker {
         val file = File("/home/nikita/processStdlibMethods/aspectDumpStdlib.txt").bufferedReader()
         var line = file.readLine()
         val methods: Set<Pair<String, String>> = File("/home/nikita/processStdlibMethods/taint_in_graph_no_field/funcs.txt").reader().use { file -> file.readLines() }.map { stringRepr ->
-            val parts = stringRepr.split(".")
-            Pair(parts.dropLast(1).joinToString("."), parts.last())
+            val parts = stringRepr.split("#")
+            Pair(parts.dropLast(1).joinToString("#"), parts.last())
         }.toSet()
         while (line != null) {
             var before: MethodState
@@ -118,8 +118,8 @@ object SummaryChecker {
             if (!(line.startsWith("@"))) { throw IllegalStateException("assert") }
             line = file.readLine()
 
-            val methodNameWOArgs = methodName.split("(")[0]
-            if (methods.contains(Pair(className, methodNameWOArgs))) {
+            // val methodNameWOArgs = methodName.split("(")[0]
+            if (methods.contains(Pair(className, methodName))) {
                 methodCalls.getOrPut(method) { mutableListOf() }.add(MethodCall(method, before, after))
             }
         }
