@@ -18,5 +18,9 @@ fun main() {
             }
         }
     }
+    println("${markedEdges.size} marked edges")
+    markedEdges.forEach { edge ->
+        println(edge.printWithMethod())
+    }
     SummaryChecker.checkSummaries(edges, markedEdges)
 }

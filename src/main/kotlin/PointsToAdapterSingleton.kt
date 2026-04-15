@@ -445,6 +445,11 @@ class PointsToAdapterSingleton private constructor(val methodName: String, val d
             val alTId = currentF2fEdgesMapIdsTo[ribN]
             if (alFId != alTId) {
                 val alF = aliasIdToAlias[alFId]
+//                if (true) { ////
+//                    val t1 = aliasIdToAlias[alFId]
+//                    val t2 = aliasIdToAlias[alTId]
+//                    println("")
+//                }
                 if (depsWithCur.contains((alF.base as PointsToInstance).getMethodName())) {
                     okVars.set(currentF2fEdgesMapIdsFromVar[ribN])
                 }
