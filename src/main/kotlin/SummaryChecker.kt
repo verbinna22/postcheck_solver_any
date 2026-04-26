@@ -351,7 +351,7 @@ object SummaryChecker {
         methodName: String
     ) {
         FileWriter(fileName, true).use { writer ->
-            writer.write("TN\n")//"Detected TN: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver because of non-analysed method $methodName ($f2fs); detected($detectedPaths)\n")
+            writer.write("Detected TN TN: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver because of non-analysed method $methodName ($f2fs); detected($detectedPaths)\n")//"Detected TN: $obj from ${methodCall.method} $pathsBefore is accessible with $realPath but this path wasn't detected by solver because of non-analysed method $methodName ($f2fs); detected($detectedPaths)\n")
         }
     }
 
@@ -389,7 +389,7 @@ object SummaryChecker {
         methodCall: MethodCall
     ) {
         FileWriter(fileName, true).use {  writer ->
-            writer.write("ok\n")//"Detected ok: $obj from ${methodCall.method} $path could be and is with $detectedPath\n")
+            writer.write("\"Detected ok ok: $obj from ${methodCall.method}\n")//"Detected ok: $obj from ${methodCall.method} $path could be and is with $detectedPath\n")
         }
     }
 
@@ -400,7 +400,7 @@ object SummaryChecker {
         methodCall: MethodCall
     ) {
         FileWriter(fileName, true).use {  writer ->
-            writer.write("False Positive\n")//""Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
+            writer.write("Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")//""Detected False Positive: $obj from ${methodCall.method} $path could be with $detectedPath but it is not accessible\n")
         }
     }
 
